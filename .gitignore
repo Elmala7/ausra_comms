@@ -1,0 +1,21 @@
+# ROS 2 build directories (if built in-tree)
+build/
+install/
+log/
+
+# Python caching
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+.pytest_cache/
+
+# VS Code / IDEs
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS specific files
+.DS_Store
+Thumbs.db
