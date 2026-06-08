@@ -11,6 +11,7 @@ log/
 .pytest_cache/
 
 # VS Code / IDEs
+.claude/
 .vscode/
 .idea/
 *.swp
