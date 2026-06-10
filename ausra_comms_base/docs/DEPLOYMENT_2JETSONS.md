@@ -119,15 +119,21 @@ cd ~/ausra_NM_ws
 source /opt/ros/humble/setup.bash
 source install/setup.bash
 export ROS_DOMAIN_ID=0
-export ROS_LOCALHOST_ONLY=0
+export ROS_LOCALHOST_ONLY=1   # Zenoh is the only cross-WiFi channel
 
 ros2 launch ausra_comms hardware_with_comms.launch.py robot_name:=ausra_1
 ```
+
+> **Note:** `ROS_LOCALHOST_ONLY=1` is required when `use_zenoh:=true` (the
+> default). It pins DDS to loopback so only Zenoh-allowlisted topics cross
+> WiFi. See [`ZENOH_GUIDE.md`](../../ZENOH_GUIDE.md) for full details and
+> the revert path.
 
 Wait until you see:
 ```
 >>> Starting relay_node (AUSRA comms layer)...
 [relay_node]: Relay active → ausra_1 | map throttle every 5.0s
+>>> Starting zenoh-bridge-ros2dds for ausra_1 ...
 ```
 
 ### 3B — Jetson 2: Start Hardware + Comms
@@ -137,7 +143,7 @@ cd ~/ausra_NM_ws
 source /opt/ros/humble/setup.bash
 source install/setup.bash
 export ROS_DOMAIN_ID=0
-export ROS_LOCALHOST_ONLY=0
+export ROS_LOCALHOST_ONLY=1
 
 ros2 launch ausra_comms hardware_with_comms.launch.py robot_name:=ausra_2
 ```
@@ -155,11 +161,13 @@ cd ~/ausra_ws
 source /opt/ros/humble/setup.bash
 source install/setup.bash
 export ROS_DOMAIN_ID=0
-export ROS_LOCALHOST_ONLY=0
+export ROS_LOCALHOST_ONLY=1
 
 cd src/AUSRA-Autonomous-System-hardware_with_nav2/ausra_comms_base/scripts
 ./start_base.sh
 ```
+
+`start_base.sh` sets `ROS_LOCALHOST_ONLY` itself based on `USE_ZENOH` (defaults to `true`); the explicit export above is for any terminal you spawn alongside it.
 
 > **Alternative:** If only 1 Jetson is available, edit `start_base.sh` and uncomment the fake publisher section for the missing robot.
 

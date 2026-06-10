@@ -27,7 +27,7 @@ setup(
             glob('launch/*.launch.py')),
         # --- Config files ---
         (os.path.join('share', package_name, 'config'),
-            glob('config/*.yaml')),
+            glob('config/*.yaml') + glob('config/*.json5')),
         # --- Shell scripts ---
         (os.path.join('share', package_name, 'scripts'),
             glob('scripts/*.sh')),

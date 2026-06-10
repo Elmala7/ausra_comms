@@ -28,6 +28,9 @@ setup(
         # --- Launch files ---
         (os.path.join('share', package_name, 'launch'),
             glob('launch/*.launch.py')),
+        # --- Zenoh bridge config (JSON5) ---
+        (os.path.join('share', package_name, 'config'),
+            glob('config/*.json5')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,

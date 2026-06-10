@@ -26,7 +26,17 @@ source ~/ausra_ws/install/setup.bash
 
 # --- ROS2 environment ---
 export ROS_DOMAIN_ID=0
-# export ROS_LOCALHOST_ONLY=0
+
+# Zenoh is now the only cross-machine channel. Pin DDS to loopback so the
+# WiFi flood (full DDS discovery + topic gossip) cannot leave this machine.
+# To revert to plain DDS, set USE_ZENOH=false and unset ROS_LOCALHOST_ONLY.
+# See ZENOH_GUIDE.md → "Revert".
+USE_ZENOH="${USE_ZENOH:-true}"
+if [ "$USE_ZENOH" = "true" ]; then
+    export ROS_LOCALHOST_ONLY=1
+else
+    export ROS_LOCALHOST_ONLY=0
+fi
 
 echo "============================================"
 echo "[Base] AUSRA Base Station — 2-Jetson Mode"
@@ -37,8 +47,8 @@ echo "============================================"
 # │  REPLACE THESE with each Jetson's WiFi IP            │
 # │  Find them on each Jetson: ip addr show wlan0        │
 # └──────────────────────────────────────────────────────┘
-JETSON1_IP="192.168.1.3"
-JETSON2_IP="192.168.1.4"
+JETSON1_IP="192.168.1.33"
+JETSON2_IP="192.168.1.42"
 
 # --- Connectivity checks ---
 ALL_OK=true
@@ -77,7 +87,8 @@ if [ "$ALL_OK" = false ]; then
 fi
 
 echo "============================================"
-echo "[Base] Launching: map merge + RViz2"
+echo "[Base] Launching: Zenoh bridge + map merge + RViz2"
+echo "[Base] USE_ZENOH=${USE_ZENOH}  ROS_LOCALHOST_ONLY=${ROS_LOCALHOST_ONLY}"
 echo "============================================"
 
 # ──────────────────────────────────────────────────────────
@@ -93,30 +104,34 @@ echo "============================================"
 # sleep 1
 # ──────────────────────────────────────────────────────────
 
-# --- Map merge (AUSRA architecture) ---
-echo "[Base] Starting map merge pipeline..."
-ros2 launch ausra_comms_base map_merge.launch.py &
-MERGE_PID=$!
+# --- Full base station: Zenoh bridge + map merge + RViz2 ---
+# base_station.launch.py wraps everything (Zenoh bridge with respawn,
+# map_merge.launch.py, RViz2). use_zenoh is forwarded from this script.
+echo "[Base] Starting base_station.launch.py..."
+ros2 launch ausra_comms_base base_station.launch.py use_zenoh:=${USE_ZENOH} &
+BASE_PID=$!
 sleep 3
-
-# --- RViz2 ---
-echo "[Base] Starting RViz2..."
-ros2 run rviz2 rviz2 &
-RVIZ_PID=$!
 
 echo "============================================"
 echo "[Base] All components running:"
-echo "  Map Merge:      PID $MERGE_PID"
-echo "  RViz2:          PID $RVIZ_PID"
+echo "  Base Station:   PID $BASE_PID"
 echo ""
-echo "  ausra_1 data arrives via DDS from Jetson 1."
-echo "  ausra_2 data arrives via DDS from Jetson 2."
+if [ "$USE_ZENOH" = "true" ]; then
+    echo "  Transport: Zenoh bridge (peer mesh on tcp/7447)"
+    echo "  DDS scope: loopback only (ROS_LOCALHOST_ONLY=1)"
+    echo "  Allowlist: /ausra_*/map  /ausra_*/pose  /ausra_*/heartbeat"
+else
+    echo "  Transport: plain DDS multicast (Zenoh disabled)"
+fi
 echo "  Press Ctrl+C to stop everything."
 echo "============================================"
 echo ""
 echo "  Verify in another terminal:"
 echo "    source /opt/ros/humble/setup.bash && source ~/ausra_ws/install/setup.bash"
 echo "    export ROS_DOMAIN_ID=0"
+if [ "$USE_ZENOH" = "true" ]; then
+    echo "    export ROS_LOCALHOST_ONLY=1"
+fi
 echo "    ros2 topic echo /ausra_1/heartbeat   # from Jetson 1"
 echo "    ros2 topic echo /ausra_2/heartbeat   # from Jetson 2"
 echo "    ros2 topic echo /map_merged --no-arr  # merged map"
@@ -126,7 +141,7 @@ echo ""
 cleanup() {
     echo ""
     echo "[Base] Shutting down..."
-    kill $RVIZ_PID $MERGE_PID 2>/dev/null
+    kill $BASE_PID 2>/dev/null
     # Uncomment if using fake publisher:
     # kill $FAKE_PID 2>/dev/null
     wait 2>/dev/null
