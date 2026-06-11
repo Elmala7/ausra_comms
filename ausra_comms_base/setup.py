@@ -41,6 +41,7 @@ setup(
     entry_points={
         'console_scripts': [
             'fake_robot_pub = ausra_comms_base.fake_robot_pub:main',
+            'map_decompressor_node = ausra_comms_base.map_decompressor_node:main',
         ],
     },
 )

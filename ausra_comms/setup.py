@@ -41,6 +41,7 @@ setup(
     entry_points={
         'console_scripts': [
             'relay_node = ausra_comms.relay_node:main',
+            'map_decompressor_node = ausra_comms.map_decompressor_node:main',
         ],
     },
 )

@@ -106,10 +106,11 @@ def generate_launch_description():
         ),
 
         # --- Stage B: Relay Node (10s delay — SLAM needs time) ---
+        # v2: Includes zlib compression, adaptive throttling, delta detection
         TimerAction(
             period=10.0,
             actions=[
-                LogInfo(msg='>>> Starting relay_node (AUSRA comms layer)...'),
+                LogInfo(msg='>>> Starting relay_node (AUSRA comms v2: compress+adapt+delta)...'),
                 Node(
                     package='ausra_comms',
                     executable='relay_node',
@@ -118,6 +119,23 @@ def generate_launch_description():
                     parameters=[{
                         'robot_name': robot_name,
                         'map_interval_sec': 5.0,
+                        # --- Communication improvements (v2) ---
+                        'base_station_ip': '192.168.1.34',
+                        'enable_compression': True,
+                        'enable_adaptive_throttle': True,
+                        'enable_delta_detection': True,
+                        'delta_threshold': 0.01,  # 1% cell change threshold
+                    }],
+                ),
+                LogInfo(msg='>>> Starting map_decompressor_node (for peer robots)...'),
+                Node(
+                    package='ausra_comms',
+                    executable='map_decompressor_node',
+                    name='map_decompressor_node',
+                    output='screen',
+                    parameters=[{
+                        'robots': ['ausra_1', 'ausra_2'],
+                        'ignore_robot': robot_name, # Don't decompress our own map
                     }],
                 ),
             ]

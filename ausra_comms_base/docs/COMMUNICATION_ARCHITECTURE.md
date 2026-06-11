@@ -8,47 +8,43 @@ This document explains how the AUSRA swarm robots communicate, why the current d
 
 ### The Communication Stack
 
+### The Communication Stack (v2)
+
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │                     APPLICATION LAYER                         │
-│  relay_node.py — throttles /map, namespaces topics            │
-├──────────────────────────────────────────────────────────────┤
-│                     ROS 2 MIDDLEWARE                          │
-│  DDS (Data Distribution Service) — automatic topic discovery  │
-│  Implementation: FastDDS (default in ROS 2 Humble)            │
+│  relay_node.py — throttles, compress (zlib), delta detection  │
+│  map_decompressor_node.py — reconstructs maps on receiver     │
 ├──────────────────────────────────────────────────────────────┤
 │                     TRANSPORT LAYER                           │
-│  UDP multicast over WiFi — same subnet, same ROS_DOMAIN_ID   │
+│  Zenoh Bridge (peer mesh) — crosses WiFi, strict allowlist    │
 ├──────────────────────────────────────────────────────────────┤
 │                     PHYSICAL LAYER                            │
 │  WiFi 802.11 — all machines connected to the same router      │
 └──────────────────────────────────────────────────────────────┘
 ```
 
-### How DDS Discovery Works
+### How Zenoh Replaces DDS Over WiFi
 
-When a Jetson publishes `/ausra_1/map`, the laptop does **not** need to "connect" to it manually. DDS performs **automatic participant discovery** using UDP multicast:
+By default, ROS 2 uses DDS (UDP multicast) which floods the WiFi network with discovery packets for every local topic (TF, scans, etc.), causing severe network degradation.
 
-1. Every ROS 2 node sends a periodic "I exist" announcement via multicast (`239.255.0.1:7400` by default)
-2. Other nodes on the same network and `ROS_DOMAIN_ID` receive the announcement
-3. DDS matches publishers with subscribers by topic name and message type
-4. Data flows directly between publisher → subscriber (peer-to-peer UDP unicast)
-
-This means **no central broker is needed** at the DDS level. The WiFi router only provides IP connectivity — it does not route or inspect ROS 2 messages.
+In the AUSRA v2 architecture, **DDS is pinned to localhost** on every machine (`ROS_LOCALHOST_ONLY=1`). The **Zenoh bridge** is the ONLY component that communicates across WiFi. It acts as a strict firewall, only bridging an explicit allowlist of topics between the Jetsons and the base station.
 
 ### What `relay_node` Does (On Each Jetson)
 
-The relay_node is a bandwidth management layer between the on-board SLAM and the WiFi network:
+The relay_node is a highly optimized bandwidth management layer between the on-board SLAM and the WiFi network:
 
-| Local topic | Swarm topic | Rate | Purpose |
-|-------------|-------------|------|---------|
-| `/map` (OccupancyGrid) | `/ausra_X/map` | Throttled to 1 msg / 5 sec | Full SLAM map — large payload, must be throttled |
-| `/pose` (PoseWithCovarianceStamped) | `/ausra_X/pose` (PoseStamped) | Pass-through ~10 Hz | Robot position — small payload, safe to relay |
-| (generated) | `/ausra_X/heartbeat` (String) | 1 Hz | Liveness check — "ausra_X alive" |
+| Local topic | Swarm topic | Transport | Purpose |
+|-------------|-------------|-----------|---------|
+| `/map` | `/ausra_X/map_compressed` | Zenoh (zlib) | Full SLAM map — compressed from ~1MB down to ~30KB |
+| `/map` | `/ausra_X/map_relay` | Local only | Raw map fallback for on-board map merge |
+| TF lookup | `/ausra_X/pose_relay` | Zenoh | Robot position (~5 Hz) |
+| (generated) | `/ausra_X/heartbeat` | Zenoh | 1 Hz liveness check + bandwidth stats |
 
-**Why throttle?** A 1000×1000 OccupancyGrid at 0.05m resolution is ~1 MB per message. At SLAM's native publish rate (~2 Hz), that's **2 MB/s per robot** — enough to saturate a WiFi link with 3 robots. Throttling to one map every 5 seconds reduces this to ~200 KB/s per robot.
-
-**Why not use namespaces?** If we launched the entire hardware stack under a `/ausra_1` namespace, DDS would broadcast ALL internal topics (`/ausra_1/scan`, `/ausra_1/odom`, TF data) over WiFi. The relay_node acts as a **firewall**: only the 3 topics above cross the WiFi boundary.
+**Bandwidth Optimizations:**
+1. **zlib Compression:** OccupancyGrids compress extremely well (mostly -1 "Unknown" cells), reducing map size by ~80-95%.
+2. **Adaptive Throttling:** A background thread pings the base station. If latency spikes (>150ms), the map publish rate automatically throttles down from 5s to 15s or 30s.
+3. **Delta Detection:** Computes an MD5 hash of the map. If the map hasn't changed since the last tick, it skips publishing entirely.
 
 ---
 

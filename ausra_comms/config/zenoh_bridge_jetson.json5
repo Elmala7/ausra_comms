@@ -1,71 +1,42 @@
-// ============================================================================
-// FILE: zenoh_bridge_jetson.json5
-// PACKAGE: ausra_comms (Jetson)
-// PURPOSE: Configures the Zenoh bridge on each Jetson. This is the source of
-//          truth for which ROS 2 topics cross WiFi from the robot.
-// ============================================================================
+// zenoh_bridge_jetson.json5 - Zenoh bridge config for Jetson robots.
+// Only relay_node's *_compressed, *_relay, and heartbeat topics cross WiFi.
+//
+// COMMUNICATION IMPROVEMENTS (v2):
+//   - /ausra_*/map_compressed replaces /ausra_*/map_relay for cross-WiFi
+//     transfer. zlib compression reduces ~1MB maps to ~200KB, saving ~80%
+//     bandwidth. The raw map_relay stays local-only for on-board map merge.
+//   - /ausra_*/map_relay is kept in the allowlist as fallback — if compression
+//     is disabled (enable_compression: false), raw maps still cross WiFi.
 {
   plugins: {
     ros2dds: {
-      // DDS Domain ID (must match domain of all other nodes in the swarm)
       domain: 0,
-
-      // relay_node already namespaces topics (e.g. /ausra_1/map), so the
-      // bridge uses root namespace — no additional prefix.
       namespace: "/",
-
-      // Allowlist: ONLY topics matching these patterns cross WiFi.
-      // Keep this list minimal to budget WiFi bandwidth.
       allow: {
         publishers: [
-          // Throttled map, pose, and heartbeat published by this robot
-          "/ausra_.*/map",
-          "/ausra_.*/pose",
+          "/ausra_.*/map_compressed",
+          "/ausra_.*/map_relay",
+          "/ausra_.*/pose_relay",
           "/ausra_.*/heartbeat",
-          // TF frames (needed so remote machines can resolve map frames)
-          "/tf",
-          "/tf_static",
-          
-          // Future swarm topics (uncomment if implementing swarm nav):
-          // "/ausra_.*/swarm_obstacles_scan",
-          // "/ausra_.*/active_target",
         ],
         subscribers: [
-          // This robot subscribes to other robots' allowlisted topics
-          "/ausra_.*/map",
-          "/ausra_.*/pose",
+          "/ausra_.*/map_compressed",
+          "/ausra_.*/map_relay",
+          "/ausra_.*/pose_relay",
           "/ausra_.*/heartbeat",
-          // TF frames from other robots
-          "/tf",
-          "/tf_static",
-
-          // Future swarm topics (uncomment if implementing swarm nav):
-          // "/ausra_.*/swarm_obstacles_scan",
-          // "/ausra_.*/active_target",
         ],
-        // Service and action calls are kept local (pub/sub only across WiFi)
         service_servers: [],
         service_clients: [],
         action_servers:  [],
         action_clients:  [],
       },
-
-      // Keep transient_local + reliable QoS working for SLAM map topics
       reliable_routes_blocking: true,
     },
   },
-
-  // Peer-to-peer session mode (no central broker required)
   mode: "peer",
-
-  // Local listen endpoint for Zenoh traffic
   listen: {
     endpoints: ["tcp/0.0.0.0:7447"],
   },
-
-  // Auto-discovery via Zenoh's multicast channel.
-  // If your WiFi router blocks multicast, comment this scouting block
-  // and uncomment the connect block below.
   scouting: {
     multicast: {
       enabled: true,
@@ -76,15 +47,11 @@
       enabled: true,
     },
   },
-
-  // Static peer connections — ensures Jetsons discover each other even when
-  // the WiFi router blocks multicast between clients (AP isolation).
-  // Both Jetsons share this config; each will connect to the other and
-  // silently skip connecting to itself.
   connect: {
     endpoints: [
-      "tcp/192.168.1.33:7447",   // Jetson 1 (ausra_1)
-      "tcp/192.168.1.42:7447",   // Jetson 2 (ausra_2)
+      "tcp/192.168.1.33:7447",   // Jetson 1
+      "tcp/192.168.1.42:7447",   // Jetson 2
+      "tcp/192.168.1.34:7447",   // Laptop
     ],
   },
 }

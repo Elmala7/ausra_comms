@@ -87,26 +87,18 @@ if [ "$ALL_OK" = false ]; then
 fi
 
 echo "============================================"
-echo "[Base] Launching: Zenoh bridge + map merge + RViz2"
+echo "[Base] Launching: Zenoh bridge + decompressor + map merge + RViz2"
 echo "[Base] USE_ZENOH=${USE_ZENOH}  ROS_LOCALHOST_ONLY=${ROS_LOCALHOST_ONLY}"
 echo "============================================"
 
-# ──────────────────────────────────────────────────────────
-# FALLBACK: If only 1 Jetson is available, uncomment these
-# lines to run a fake publisher for the missing robot.
-#
-# echo "[Base] Starting fake ausra_2 publisher..."
-# ros2 run ausra_comms_base fake_robot_pub --ros-args \
-#     -p robot_name:=ausra_2 \
-#     -p robot_index:=2 \
-#     -p map_interval_sec:=10.0 &
-# FAKE_PID=$!
-# sleep 1
-# ──────────────────────────────────────────────────────────
 
-# --- Full base station: Zenoh bridge + map merge + RViz2 ---
-# base_station.launch.py wraps everything (Zenoh bridge with respawn,
-# map_merge.launch.py, RViz2). use_zenoh is forwarded from this script.
+
+# --- Full base station: Zenoh bridge + decompressor + map merge + RViz2 ---
+# base_station.launch.py wraps everything:
+#   1. Zenoh bridge (peer mesh, respawn)
+#   2. map_decompressor_node (zlib → OccupancyGrid)
+#   3. map_merge.launch.py (expansion + merge)
+#   4. RViz2
 echo "[Base] Starting base_station.launch.py..."
 ros2 launch ausra_comms_base base_station.launch.py use_zenoh:=${USE_ZENOH} &
 BASE_PID=$!
@@ -119,7 +111,8 @@ echo ""
 if [ "$USE_ZENOH" = "true" ]; then
     echo "  Transport: Zenoh bridge (peer mesh on tcp/7447)"
     echo "  DDS scope: loopback only (ROS_LOCALHOST_ONLY=1)"
-    echo "  Allowlist: /ausra_*/map  /ausra_*/pose  /ausra_*/heartbeat"
+    echo "  Allowlist: /ausra_*/map_compressed  /ausra_*/pose_relay  /ausra_*/heartbeat"
+    echo "  Pipeline:  map_compressed → decompressor → map_relay → expansion → merge"
 else
     echo "  Transport: plain DDS multicast (Zenoh disabled)"
 fi
@@ -132,9 +125,10 @@ echo "    export ROS_DOMAIN_ID=0"
 if [ "$USE_ZENOH" = "true" ]; then
     echo "    export ROS_LOCALHOST_ONLY=1"
 fi
-echo "    ros2 topic echo /ausra_1/heartbeat   # from Jetson 1"
-echo "    ros2 topic echo /ausra_2/heartbeat   # from Jetson 2"
-echo "    ros2 topic echo /map_merged --no-arr  # merged map"
+echo "    ros2 topic echo /ausra_1/heartbeat         # from Jetson 1 (with stats)"
+echo "    ros2 topic echo /ausra_2/heartbeat         # from Jetson 2 (with stats)"
+echo "    ros2 topic bw /ausra_1/map_compressed      # compressed bandwidth"
+echo "    ros2 topic echo /map_merged --no-arr       # merged map"
 echo ""
 
 # --- Cleanup on Ctrl+C ---
@@ -142,8 +136,6 @@ cleanup() {
     echo ""
     echo "[Base] Shutting down..."
     kill $BASE_PID 2>/dev/null
-    # Uncomment if using fake publisher:
-    # kill $FAKE_PID 2>/dev/null
     wait 2>/dev/null
     echo "[Base] Done."
 }
