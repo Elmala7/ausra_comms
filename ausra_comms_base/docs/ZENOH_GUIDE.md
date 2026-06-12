@@ -368,10 +368,10 @@ USE_ZENOH=false ./start_base.sh
 ros2 launch ausra_comms_base base_station.launch.py use_zenoh:=false
 ```
 
-You also need to flip `ROS_LOCALHOST_ONLY` back to `0` so DDS multicast can cross WiFi again:
+You also need to unset `ROS_LOCALHOST_ONLY` so DDS multicast can cross WiFi again:
 
 ```bash
-export ROS_LOCALHOST_ONLY=0
+unset ROS_LOCALHOST_ONLY
 ```
 
 `start_base.sh` does this automatically when `USE_ZENOH=false`.
@@ -477,11 +477,11 @@ To launch the Laptop Base Station with Zenoh:
 If you want to test without Zenoh (running raw DDS over WiFi, e.g., for hardware full stack):
 1. **Kill all Zenoh bridge processes** on all machines:
    ```bash
-   sudo killall zenoh-bridge-ros2dds
+   pkill -f zenoh-bridge
    ```
 2. **Reset the ROS Localhost environment variable** (this is critical so that nodes on different machines can discover each other over WiFi DDS):
    ```bash
-   export ROS_LOCALHOST_ONLY=0
+   unset ROS_LOCALHOST_ONLY
    ```
 3. **Launch the nodes with `use_zenoh:=false`**:
    * **On Jetson**:
