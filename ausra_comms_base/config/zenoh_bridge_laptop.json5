@@ -1,10 +1,4 @@
-// zenoh_bridge_laptop.json5 - Zenoh bridge config for Laptop base station.
-// Laptop subscribes to compressed maps, poses, and heartbeats from Jetsons.
-//
-// COMMUNICATION IMPROVEMENTS (v2):
-//   - /ausra_*/map_compressed: zlib-compressed maps (~200KB vs ~1MB raw)
-//   - /ausra_*/map_relay: kept as fallback if compression is disabled
-//   - map_decompressor_node on the laptop decompresses back to OccupancyGrid
+// Zenoh bridge config for Laptop base station.
 {
   plugins: {
     ros2dds: {
@@ -13,22 +7,23 @@
       allow: {
         publishers: [],
         subscribers: [
-          "/ausra_.*/map_compressed",
           "/ausra_.*/map_relay",
-          "/ausra_.*/pose_relay",
+          "/ausra_.*/map_compressed",
           "/ausra_.*/heartbeat",
         ],
         service_servers: [],
         service_clients: [],
-        action_servers:  [],
-        action_clients:  [],
+        action_servers: [],
+        action_clients: [],
       },
       reliable_routes_blocking: true,
     },
   },
   mode: "peer",
   listen: {
-    endpoints: ["tcp/0.0.0.0:7447"],
+    endpoints: [
+      "tcp/0.0.0.0:7447"
+    ],
   },
   scouting: {
     multicast: {
@@ -42,8 +37,8 @@
   },
   connect: {
     endpoints: [
-      "tcp/192.168.1.33:7447",   // Jetson 1
-      "tcp/192.168.1.42:7447",   // Jetson 2
+      "tcp/192.168.1.33:7447",
+      "tcp/192.168.1.42:7447",
     ],
   },
 }

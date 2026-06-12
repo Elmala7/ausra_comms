@@ -1,12 +1,4 @@
-# map_merge_swarm_params.yaml — Base Station Merger Configuration
-# Matches ausra_map_merge_HW/config/map_merge_HW_params.yaml
-#
-# CRITICAL: init_pose_* must be 0.0 for all robots.
-# The map_expansion_node bakes spawn offsets into canvas pixels.
-# Setting init_pose_* to spawn coordinates doubles the shift.
-#
-# Init poses are injected dynamically in map_merge.launch.py.
-
+# Map merge configuration for base station.
 map_merge:
   ros__parameters:
     robot_map_topic:   map_fixed

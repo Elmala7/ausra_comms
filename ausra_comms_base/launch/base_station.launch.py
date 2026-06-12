@@ -1,30 +1,3 @@
-# ============================================================
-# FILE: base_station.launch.py
-# PACKAGE: ausra_comms_base
-# RUNS ON: Laptop (base station)
-# PURPOSE: Launches map decompressor, map_merge pipeline, RViz2,
-#          and the Zenoh cross-WiFi bridge. With Zenoh enabled,
-#          robot topics arrive over the Zenoh fabric.
-#
-# DATA FLOW:
-#   Jetson relay_node → /ausra_X/map_compressed (zlib, ~30KB)
-#     → Zenoh → Laptop
-#       → map_decompressor_node → /ausra_X/map_relay (OccupancyGrid)
-#         → map_expansion_node → /ausra_X/map_fixed
-#           → multirobot_map_merge → /map_merged
-#
-# LAUNCH ARGUMENTS:
-#   use_zenoh — start the Zenoh cross-WiFi bridge (default: true)
-#               Set false to revert to plain DDS (also requires
-#               unsetting ROS_LOCALHOST_ONLY=1 — see ZENOH_GUIDE.md).
-#
-# ENVIRONMENT:
-#   ROS_LOCALHOST_ONLY=1  — enforced when use_zenoh=true (Zenoh is the
-#                            only cross-machine channel).
-#   ZENOH_BRIDGE_BIN      — override path to zenoh-bridge-ros2dds binary.
-#                            Defaults to /opt/zenoh-bridge/zenoh-bridge-ros2dds.
-# ============================================================
-
 import os
 
 from launch import LaunchDescription
@@ -52,12 +25,8 @@ def generate_launch_description():
 
     return LaunchDescription([
         DeclareLaunchArgument('use_zenoh', default_value='true',
-                              description='Start Zenoh cross-WiFi bridge'),
+                               description='Start Zenoh cross-WiFi bridge'),
 
-        # --- Zenoh bridge (graceful: respawn, no kill-cascade) ---
-        # Starts first so the bridge is ready when subscribers come up.
-        # respawn=True: bridge restarts if it crashes; the merge pipeline
-        # keeps running and recovers as soon as the bridge is back.
         ExecuteProcess(
             cmd=[zenoh_bin, '-c', zenoh_cfg],
             output='screen',
@@ -71,10 +40,7 @@ def generate_launch_description():
             condition=IfCondition(use_zenoh),
         ),
 
-        # --- Map decompressor: /ausra_X/map_compressed → /ausra_X/map_relay ---
-        # Must start BEFORE map_merge so /ausra_X/map_relay topics exist
-        # when the map_expansion_nodes subscribe to them.
-        LogInfo(msg='>>> Starting map decompressor (zlib → OccupancyGrid)...'),
+        LogInfo(msg='>>> Starting map decompressor...'),
         Node(
             package='ausra_comms_base',
             executable='map_decompressor_node',
@@ -85,7 +51,6 @@ def generate_launch_description():
             }],
         ),
 
-        # --- Map merge: /ausra_1/map_relay, /ausra_2/map_relay → /map_merged ---
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource([
                 bringup_share,
@@ -93,7 +58,6 @@ def generate_launch_description():
             ]),
         ),
 
-        # --- RViz2: visualization ---
         Node(
             package='rviz2',
             executable='rviz2',

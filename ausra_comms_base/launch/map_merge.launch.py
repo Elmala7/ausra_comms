@@ -1,12 +1,3 @@
-# map_merge.launch.py — Base Station Map Merge Pipeline
-# Runs on Laptop. Launches map_expansion_node per robot + multirobot_map_merge.
-#
-# Data flow:
-#   /ausra_X/map_relay → map_expansion_node → /ausra_X/map_fixed → map_merge → /map_merged
-#
-# Matches ausra_map_merge_HW launch patterns: dynamic robot config,
-# dynamic init_pose injection, no phantom node needed.
-
 import os
 from launch import LaunchDescription
 from launch.actions import LogInfo, TimerAction, DeclareLaunchArgument, OpaqueFunction
@@ -27,7 +18,6 @@ def launch_setup(context, *args, **kwargs):
     pkg_share = get_package_share_directory('ausra_comms_base')
     params_file = os.path.join(pkg_share, 'config', 'map_merge_swarm_params.yaml')
 
-    # Parse robot config from CLI: "ausra_1:0.0:0.0 ausra_2:0.0:0.0"
     robot_config_str = LaunchConfiguration('robot_config').perform(context)
     robot_config = {}
 
@@ -48,11 +38,6 @@ def launch_setup(context, *args, **kwargs):
         '\n'
         '╔══════════════════════════════════════════════════════════════╗\n'
         '║         AUSRA Base Station — Map Merge Pipeline             ║\n'
-        '╠══════════════════════════════════════════════════════════════╣\n'
-       f'║ ROBOTS: {robot_count} configured                                        ║\n'
-        '║ INPUT:  /ausra_X/map_relay (via decompressor from Zenoh)     ║\n'
-        '║ OUTPUT: /map_merged                                          ║\n'
-        '║ CANVAS: 1000×1000 @ 0.05 m/cell | Origin (-25.0, -25.0)     ║\n'
         '╚══════════════════════════════════════════════════════════════╝\n'
     )))
 
@@ -62,8 +47,7 @@ def launch_setup(context, *args, **kwargs):
 
         actions.append(LogInfo(msg=(
             f'[AUSRA] {robot_name}: '
-            f'{slam_topic} → {output_topic} | '
-            f'offset=({cfg["offset_x"]:.3f}, {cfg["offset_y"]:.3f})'
+            f'{slam_topic} → {output_topic}'
         )))
 
         expansion_node = Node(
@@ -82,13 +66,12 @@ def launch_setup(context, *args, **kwargs):
                 'canvas_origin_x':    CANVAS_ORIGIN_X,
                 'canvas_origin_y':    CANVAS_ORIGIN_Y,
                 'publish_rate_hz':    1.0,
-                'use_transient_local': False,  # Required for Zenoh volatile topics
+                'use_transient_local': False,
             }],
             output='screen',
         )
         actions.append(expansion_node)
 
-    # Dynamic init_pose injection (matching ausra_map_merge_HW pattern)
     dynamic_init_poses = {}
     for robot_name in robot_config.keys():
         dynamic_init_poses[f'/{robot_name}/map_merge/init_pose_x'] = 0.0

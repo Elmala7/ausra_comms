@@ -15,19 +15,15 @@ Step-by-step guide for deploying the AUSRA swarm with **2 Jetson Orin Nanos** (a
 ### Data Flow
 
 ```
-[ JETSON 1 — ausra_1 ]                           [ WiFi / DDS ]      [ LAPTOP — Base Station ]
+[ JETSON 1 — ausra_1 ]                              [ Zenoh ]           [ LAPTOP — Base Station ]
 
-SLAM ──► /map ──► relay_node ──(throttle)──► /ausra_1/map  ════►  map_expansion_node ──► /ausra_1/map_fixed ──┐
-     ──► /pose ──► relay_node ─────────────► /ausra_1/pose ════►                                               │
-                    relay_node (1Hz) ────────► /ausra_1/hb  ════►                                               ├──► map_merge ──► /map_merged
-                                                                                                                │
-[ JETSON 2 — ausra_2 ]                                                                                         │
-                                                                                                                │
-SLAM ──► /map ──► relay_node ──(throttle)──► /ausra_2/map  ════►  map_expansion_node ──► /ausra_2/map_fixed ──┤
-     ──► /pose ──► relay_node ─────────────► /ausra_2/pose ════►                                               │
-                    relay_node (1Hz) ────────► /ausra_2/hb  ════►                                               │
-                                                                                                                │
-                                                                   phantom_node ──► /ausra_99/map_fixed ────────┘
+SLAM ──► /map ──► relay_node ──(throttle)──► /ausra_1/map_relay  ═══►  map_expansion_node ──► /ausra_1/map_fixed ──┐
+                   relay_node (1Hz) ─────────► /ausra_1/heartbeat ═══►                                              │
+                                                                                                                    ├──► map_merge ──► /map_merged
+[ JETSON 2 — ausra_2 ]                                                                                             │
+                                                                                                                    │
+SLAM ──► /map ──► relay_node ──(throttle)──► /ausra_2/map_relay  ═══►  map_expansion_node ──► /ausra_2/map_fixed ──┘
+                   relay_node (1Hz) ─────────► /ausra_2/heartbeat ═══►
 ```
 
 ---
@@ -75,7 +71,7 @@ source install/setup.bash
 ```bash
 cd ~/ausra_ws
 source /opt/ros/humble/setup.bash
-colcon build --packages-select ausra_comms ausra_comms_base ausra_map_merge_HW multirobot_map_merge
+colcon build --packages-select ausra_comms_base ausra_map_merge_HW multirobot_map_merge
 source install/setup.bash
 ```
 
@@ -89,21 +85,13 @@ On each machine, find the WiFi IP:
 ip addr show wlan0 | grep "inet "
 ```
 
-| Machine | Example IP |
-|---------|-----------|
-| Jetson 1 | `192.168.1.33` |
-| Jetson 2 | `192.168.1.XX` (find tomorrow) |
-| Laptop | `192.168.1.YY` (find tomorrow) |
-
 ### Edit `start_base.sh` on the laptop
 
 ```bash
 nano ~/ausra_ws/src/AUSRA-Autonomous-System-hardware_with_nav2/ausra_comms_base/scripts/start_base.sh
 ```
 
-Set `JETSON1_IP` and `JETSON2_IP` to the real IPs.
-
-Then rebuild:
+Set `JETSON1_IP` and `JETSON2_IP` to the real IPs. Then rebuild:
 ```bash
 cd ~/ausra_ws && colcon build --packages-select ausra_comms_base && source install/setup.bash
 ```
@@ -119,20 +107,15 @@ cd ~/ausra_NM_ws
 source /opt/ros/humble/setup.bash
 source install/setup.bash
 export ROS_DOMAIN_ID=0
-export ROS_LOCALHOST_ONLY=1   # Zenoh is the only cross-WiFi channel
+export ROS_LOCALHOST_ONLY=1
 
 ros2 launch ausra_comms hardware_with_comms.launch.py robot_name:=ausra_1
 ```
 
-> **Note:** `ROS_LOCALHOST_ONLY=1` is required when `use_zenoh:=true` (the
-> default). It pins DDS to loopback so only Zenoh-allowlisted topics cross
-> WiFi. See [`ZENOH_GUIDE.md`](../../ZENOH_GUIDE.md) for full details and
-> the revert path.
-
 Wait until you see:
 ```
->>> Starting relay_node (AUSRA comms layer)...
-[relay_node]: Relay active → ausra_1 | map throttle every 5.0s
+>>> Starting relay_node...
+[relay_node]: Relay active → ausra_1 | map throttle 5.0s | compression=False
 >>> Starting zenoh-bridge-ros2dds for ausra_1 ...
 ```
 
@@ -148,28 +131,12 @@ export ROS_LOCALHOST_ONLY=1
 ros2 launch ausra_comms hardware_with_comms.launch.py robot_name:=ausra_2
 ```
 
-Wait until you see:
-```
->>> Starting relay_node (AUSRA comms layer)...
-[relay_node]: Relay active → ausra_2 | map throttle every 5.0s
-```
-
 ### 3C — Laptop: Start Base Station
 
 ```bash
-cd ~/ausra_ws
-source /opt/ros/humble/setup.bash
-source install/setup.bash
-export ROS_DOMAIN_ID=0
-export ROS_LOCALHOST_ONLY=1
-
-cd src/AUSRA-Autonomous-System-hardware_with_nav2/ausra_comms_base/scripts
+cd ~/ausra_ws/src/AUSRA-Autonomous-System-hardware_with_nav2/ausra_comms_base/scripts
 ./start_base.sh
 ```
-
-`start_base.sh` sets `ROS_LOCALHOST_ONLY` itself based on `USE_ZENOH` (defaults to `true`); the explicit export above is for any terminal you spawn alongside it.
-
-> **Alternative:** If only 1 Jetson is available, edit `start_base.sh` and uncomment the fake publisher section for the missing robot.
 
 ---
 
@@ -181,42 +148,33 @@ Open a **new terminal** on the laptop:
 source /opt/ros/humble/setup.bash
 source ~/ausra_ws/install/setup.bash
 export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=1
 
 # 1. Heartbeats from both Jetsons
 ros2 topic echo /ausra_1/heartbeat --once
-# Expected: "ausra_1 alive"
+# Expected: "ausra_1 alive | maps=N"
 
 ros2 topic echo /ausra_2/heartbeat --once
-# Expected: "ausra_2 alive"
+# Expected: "ausra_2 alive | maps=N"
 
-# 2. List all robot topics
+# 2. List robot topics
 ros2 topic list | grep ausra
 # Expected:
-#   /ausra_1/heartbeat   ← real Jetson 1 via DDS
-#   /ausra_1/map         ← real SLAM via DDS
-#   /ausra_1/pose        ← real pose via DDS
-#   /ausra_2/heartbeat   ← real Jetson 2 via DDS
-#   /ausra_2/map         ← real SLAM via DDS
-#   /ausra_2/pose        ← real pose via DDS
-
-# 3. Check map_fixed topics (from expansion nodes)
-ros2 topic list | grep map_fixed
-# Expected:
+#   /ausra_1/heartbeat
+#   /ausra_1/map_relay
 #   /ausra_1/map_fixed
+#   /ausra_2/heartbeat
+#   /ausra_2/map_relay
 #   /ausra_2/map_fixed
-#   /ausra_99/map_fixed  (phantom)
 
-# 4. Check merged map
+# 3. Check merged map
 ros2 topic echo /map_merged --no-arr --once
-# Expected: OccupancyGrid with frame_id='map'
 ```
 
 ### RViz2 Setup
 
-1. Set **Fixed Frame** to `map`
-2. **Add → By topic → /map_merged → Map**
-3. **Add → By topic → /ausra_1/map → Map** (set Color Scheme to `costmap`, Alpha to 0.5)
-4. **Add → By topic → /ausra_2/map → Map** (set Alpha to 0.3)
+1. To see merged map: set **Fixed Frame** to `map`, add `/map_merged` → Map
+2. To see individual robot maps: add `/ausra_1/map_relay` → Map, set **Fixed Frame** to the frame shown in that topic's header (e.g. `ausra_1/map` or `map`)
 
 ---
 
@@ -224,45 +182,28 @@ ros2 topic echo /map_merged --no-arr --once
 
 ### Heartbeat doesn't appear on Laptop
 
-DDS multicast discovery is failing. Check on **all 3 machines**:
-
+Check Zenoh bridge is running on both sides:
 ```bash
-echo $ROS_DOMAIN_ID      # Must be 0
-echo $ROS_LOCALHOST_ONLY  # Must be 0
+ps aux | grep zenoh
 ```
 
-Ping test from laptop:
+Check `ROS_LOCALHOST_ONLY=1` is set on all machines.
+
+### Map doesn't appear in map_merge pipeline
+
+1. Check relay_node is receiving maps: look for `Map relayed #N` in Jetson terminal
+2. Check map_relay topic arrives on laptop: `ros2 topic hz /ausra_1/map_relay`
+3. Check expansion node is subscribing: `ros2 topic info /ausra_1/map_relay -v`
+
+### Robot doesn't move with micro-ROS after using Zenoh
+
+**Kill leftover Zenoh processes** before switching back to plain hardware_full_stack:
 ```bash
-ping <JETSON1_IP>   # Must succeed
-ping <JETSON2_IP>   # Must succeed
+pkill -f zenoh-bridge
+unset ROS_LOCALHOST_ONLY
 ```
 
-If ping works but topics don't appear:
-- Your router may be blocking multicast. Try a **mobile hotspot** instead.
-- Check firewall: `sudo ufw status` — should be inactive or allow UDP.
-- Try setting `export FASTRTPS_DEFAULT_PROFILES_FILE=""` to clear any FastDDS overrides.
-
-### `/ausra_X/map` topic exists but no data
-
-QoS mismatch. Check on the Jetson:
-```bash
-ros2 topic info /ausra_1/map -v
-```
-Should show `Reliability: Reliable` and `Durability: Transient local`.
-
-### `map_expansion_node` shows RESOLUTION MISMATCH
-
-Your SLAM config uses `resolution: 0.05` — this must match `CANVAS_RESOLUTION` in `map_merge.launch.py` (currently `0.05`).
-
-### `/map_merged` not appearing
-
-- Needs at least 2 maps discovered. Check that both `/ausra_1/map_fixed` and `/ausra_2/map_fixed` topics exist.
-- Check map_merge logs for: `adding robot [/ausra_1] to system`
-- If you see `Couldn't get initial position for robot [/ausra_1]` → check `map_merge_swarm_params.yaml`.
-
-### Only 1 Jetson available
-
-Edit `start_base.sh` and uncomment the fake publisher section. This launches a `fake_robot_pub` to simulate the missing robot.
+Zenoh bridge + `ROS_LOCALHOST_ONLY=1` left in the environment breaks micro-ROS agent DDS discovery.
 
 ---
 
@@ -272,18 +213,21 @@ Edit `start_base.sh` and uncomment the fake publisher section. This launches a `
 
 | File | Purpose |
 |------|---------|
-| `ausra_comms/relay_node.py` | Throttles map, relays pose, publishes heartbeat |
-| `launch/hardware_with_comms.launch.py` | **THE ONE YOU RUN** — hardware stack + relay_node |
+| `ausra_comms/relay_node.py` | Throttles map, publishes heartbeat |
+| `launch/hardware_with_comms.launch.py` | **THE ONE YOU RUN** — hardware stack + relay + Zenoh bridge |
+| `config/zenoh_bridge_jetson.json5` | Zenoh topic allowlist |
 
 ### What lives on the Laptop (`ausra_comms_base`)
 
 | File | Purpose |
 |------|---------|
+| `ausra_comms_base/map_decompressor_node.py` | Decompresses maps (when compression enabled) |
 | `ausra_comms_base/fake_robot_pub.py` | Dummy robot publisher (fallback for testing) |
+| `launch/base_station.launch.py` | Zenoh bridge + decompressor + map merge + RViz2 |
 | `launch/map_merge.launch.py` | Map expansion nodes + merge engine |
-| `launch/base_station.launch.py` | Map merge + RViz2 |
-| `config/map_merge_swarm_params.yaml` | Merge params (init poses, namespace config) |
-| `scripts/start_base.sh` | Convenience script — ping + merge + RViz2 |
+| `config/map_merge_swarm_params.yaml` | Merge params |
+| `config/zenoh_bridge_laptop.json5` | Zenoh topic allowlist |
+| `scripts/start_base.sh` | Convenience script — ping + launch |
 
 ### Also needed on the Laptop (separate packages)
 
