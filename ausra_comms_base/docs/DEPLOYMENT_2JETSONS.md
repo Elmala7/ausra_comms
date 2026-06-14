@@ -17,12 +17,12 @@ Step-by-step guide for deploying the AUSRA swarm with **2 Jetson Orin Nanos** (a
 ```
 [ JETSON 1 — ausra_1 ]                              [ Zenoh ]           [ LAPTOP — Base Station ]
 
-SLAM ──► /map ──► relay_node ──(throttle)──► /ausra_1/map_relay  ═══►  map_expansion_node ──► /ausra_1/map_fixed ──┐
+SLAM ──► /map ──► relay_node ──(throttle)──► /ausra_1/map  ═══►  map_expansion_node ──► /ausra_1/map_fixed ──┐
                    relay_node (1Hz) ─────────► /ausra_1/heartbeat ═══►                                              │
                                                                                                                     ├──► map_merge ──► /map_merged
 [ JETSON 2 — ausra_2 ]                                                                                             │
                                                                                                                     │
-SLAM ──► /map ──► relay_node ──(throttle)──► /ausra_2/map_relay  ═══►  map_expansion_node ──► /ausra_2/map_fixed ──┘
+SLAM ──► /map ──► relay_node ──(throttle)──► /ausra_2/map  ═══►  map_expansion_node ──► /ausra_2/map_fixed ──┘
                    relay_node (1Hz) ─────────► /ausra_2/heartbeat ═══►
 ```
 
@@ -161,10 +161,10 @@ ros2 topic echo /ausra_2/heartbeat --once
 ros2 topic list | grep ausra
 # Expected:
 #   /ausra_1/heartbeat
-#   /ausra_1/map_relay
+#   /ausra_1/map
 #   /ausra_1/map_fixed
 #   /ausra_2/heartbeat
-#   /ausra_2/map_relay
+#   /ausra_2/map
 #   /ausra_2/map_fixed
 
 # 3. Check merged map
@@ -174,7 +174,7 @@ ros2 topic echo /map_merged --no-arr --once
 ### RViz2 Setup
 
 1. To see merged map: set **Fixed Frame** to `map`, add `/map_merged` → Map
-2. To see individual robot maps: add `/ausra_1/map_relay` → Map, set **Fixed Frame** to the frame shown in that topic's header (e.g. `ausra_1/map` or `map`)
+2. To see individual robot maps: add `/ausra_1/map` → Map, set **Fixed Frame** to the frame shown in that topic's header (e.g. `ausra_1/map` or `map`)
 
 ---
 
@@ -192,8 +192,8 @@ Check `ROS_LOCALHOST_ONLY=1` is set on all machines.
 ### Map doesn't appear in map_merge pipeline
 
 1. Check relay_node is receiving maps: look for `Map relayed #N` in Jetson terminal
-2. Check map_relay topic arrives on laptop: `ros2 topic hz /ausra_1/map_relay`
-3. Check expansion node is subscribing: `ros2 topic info /ausra_1/map_relay -v`
+2. Check map topic arrives on laptop: `ros2 topic hz /ausra_1/map`
+3. Check expansion node is subscribing: `ros2 topic info /ausra_1/map -v`
 
 ### Robot doesn't move with micro-ROS after using Zenoh
 

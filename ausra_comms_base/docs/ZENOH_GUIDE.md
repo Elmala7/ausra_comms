@@ -2,7 +2,7 @@
 
 Cross-WiFi transport for the AUSRA swarm using `zenoh-bridge-ros2dds`.
 
-This guide replaces the original "all DDS over WiFi" model. After applying this change, **Zenoh is the only channel that crosses WiFi**. DDS is pinned to loopback on every machine via `ROS_LOCALHOST_ONLY=1`. Only an explicit allowlist of topics is bridged: `/ausra_*/map_relay`, `/ausra_*/map_compressed`, and `/ausra_*/heartbeat`.
+This guide replaces the original "all DDS over WiFi" model. After applying this change, **Zenoh is the only channel that crosses WiFi**. DDS is pinned to loopback on every machine via `ROS_LOCALHOST_ONLY=1`. Only an explicit allowlist of topics is bridged: `/ausra_*/map`, `/ausra_*/map_compressed`, and `/ausra_*/heartbeat`.
 
 ---
 
@@ -30,7 +30,7 @@ These were chosen on your behalf when you said "do the right thing." Override an
 | Bridge install path | `/opt/zenoh-bridge/zenoh-bridge-ros2dds` | env var `ZENOH_BRIDGE_BIN` (per launch) |
 | Per-robot Zenoh namespace | derived from `robot_name` launch arg (`/ausra_1`, `/ausra_2`) | already automatic |
 | Bridge mode | peer mesh on all 3 machines | `*.json5` `mode` |
-| Allowlist | `/ausra_*/map_relay`, `/ausra_*/map_compressed`, `/ausra_*/heartbeat` (+ commented future entries) | `*.json5` `plugins.ros2dds.allow.*` |
+| Allowlist | `/ausra_*/map`, `/ausra_*/map_compressed`, `/ausra_*/heartbeat` (+ commented future entries) | `*.json5` `plugins.ros2dds.allow.*` |
 | DDS scope | loopback only when `use_zenoh:=true` (the default) | env `ROS_LOCALHOST_ONLY` |
 | Bridge crash behavior | respawn with 2s delay; relay/SLAM/Nav2 unaffected | `respawn=True` in launch files |
 
@@ -185,8 +185,8 @@ The `/ausra_X/` namespace on each Jetson is set at launch via a `-n /ausra_X` CL
     domain: 0,
     namespace: "/ausra_X_OVERRIDE_AT_LAUNCH",   // overridden by -n
     allow: {
-      publishers:  ["/ausra_.*/map_relay", "/ausra_.*/map_compressed", "/ausra_.*/heartbeat"],
-      subscribers: ["/ausra_.*/map_relay", "/ausra_.*/map_compressed", "/ausra_.*/heartbeat"],
+      publishers:  ["/ausra_.*/map", "/ausra_.*/map_compressed", "/ausra_.*/heartbeat"],
+      subscribers: ["/ausra_.*/map", "/ausra_.*/map_compressed", "/ausra_.*/heartbeat"],
       // services & actions explicitly empty — pub/sub only across WiFi
     },
     reliable_routes_blocking: true,    // preserves /map's reliable+transient_local QoS
@@ -204,7 +204,7 @@ Peer discovery uses Zenoh's own scouting multicast on `224.0.0.224:7446` — **n
 
 ---
 
-## 4. Verify only `/map_relay`, `/map_compressed`, `/heartbeat` cross WiFi
+## 4. Verify only `/map`, `/map_compressed`, `/heartbeat` cross WiFi
 
 Three checks: name list, traffic capture, QoS sanity.
 
@@ -221,10 +221,10 @@ ros2 topic list | grep -E '/ausra_[12]/'
 Expected — exactly these and nothing else:
 ```
 /ausra_1/heartbeat
-/ausra_1/map_relay
+/ausra_1/map
 /ausra_1/map_compressed
 /ausra_2/heartbeat
-/ausra_2/map_relay
+/ausra_2/map
 /ausra_2/map_compressed
 ```
 
@@ -260,12 +260,12 @@ ss -tnlp | grep 7447     # bridge listening on tcp/7447
 ss -tn   | grep 7447     # established peer connections to other machines
 ```
 
-### 4.3 QoS preservation on `/ausra_*/map_relay`
+### 4.3 QoS preservation on `/ausra_*/map`
 
 Critical because `transient_local + reliable` is load-bearing in this stack:
 
 ```bash
-ros2 topic info /ausra_1/map_relay -v
+ros2 topic info /ausra_1/map -v
 ```
 
 Both publisher (Zenoh bridge endpoint on the laptop) and subscriber (map_expansion_node) must show:
@@ -410,7 +410,7 @@ DDS multicast over WiFi, `ROS_LOCALHOST_ONLY=0`, all the original symptoms (floo
 │  Nav2, EKF, costmaps     │                                              │
 │  /scan /tf /odom etc.    │                                              │
 │                          ▼                                              │
-│                     relay_node ──► /ausra_1/map_relay (throttled)        │
+│                     relay_node ──► /ausra_1/map (throttled)        │
 │                                ──► /ausra_1/map_compressed (optional)   │
 │                                ──► /ausra_1/heartbeat                   │
 │                                            │                             │
@@ -423,7 +423,7 @@ DDS multicast over WiFi, `ROS_LOCALHOST_ONLY=0`, all the original symptoms (floo
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                       ON-LAPTOP (loopback DDS only)                      │
 │                                                                          │
-│   zenoh-bridge-ros2dds (allowlist) ──► /ausra_1/map_relay (transient)   │
+│   zenoh-bridge-ros2dds (allowlist) ──► /ausra_1/map (transient)   │
 │                                    ──► /ausra_1/map_compressed          │
 │                                    ──► /ausra_1/heartbeat               │
 │                                            │                             │

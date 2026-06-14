@@ -6,26 +6,31 @@
       namespace: "/",
       allow: {
         publishers: [
-          "/ausra_.*/map_relay",
+          "/ausra_.*/map",
           "/ausra_.*/map_compressed",
           "/ausra_.*/heartbeat",
         ],
         subscribers: [
-          "/ausra_.*/map_relay",
+          "/ausra_.*/map",
           "/ausra_.*/map_compressed",
           "/ausra_.*/heartbeat",
+          // Uncomment to enable manual teleoperation from the laptop:
+          // "/cmd_vel",
+          // "/ausra_.*/cmd_vel",
         ],
         service_servers: [],
         service_clients: [],
-        action_servers:  [],
-        action_clients:  [],
+        action_servers: [],
+        action_clients: [],
       },
       reliable_routes_blocking: true,
     },
   },
   mode: "peer",
   listen: {
-    endpoints: ["tcp/0.0.0.0:7447"],
+    endpoints: [
+      "tcp/0.0.0.0:7447"
+    ],
   },
   scouting: {
     multicast: {

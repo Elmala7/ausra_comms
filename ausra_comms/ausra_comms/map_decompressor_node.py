@@ -42,7 +42,7 @@ class MapDecompressorNode(Node):
             active_robots.append(robot)
             
             pub = self.create_publisher(
-                OccupancyGrid, f'/{robot}/map_relay', output_qos)
+                OccupancyGrid, f'/{robot}/map', output_qos)
 
             self.create_subscription(
                 ByteMultiArray,
@@ -51,7 +51,7 @@ class MapDecompressorNode(Node):
                 input_qos)
 
             self.get_logger().info(
-                f'Decompressor: /{robot}/map_compressed → /{robot}/map_relay')
+                f'Decompressor: /{robot}/map_compressed → /{robot}/map')
 
         self.get_logger().info(
             f'Map decompressor active for {len(active_robots)} robots: {active_robots}')

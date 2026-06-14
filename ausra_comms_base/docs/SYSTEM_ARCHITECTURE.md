@@ -25,7 +25,7 @@ Each Jetson runs:
 3. **Zenoh bridge** — bridges allowlisted topics to other machines
 
 The relay_node:
-- Subscribes to `/map` and `/ausra_X/map` → publishes `/ausra_X/map_relay` (throttled to 1 msg / 5 sec)
+- Subscribes to `/map` and `/ausra_X/map` → publishes `/ausra_X/map` (throttled to 1 msg / 5 sec)
 - Publishes `/ausra_X/heartbeat` at 1 Hz
 
 ### Laptop Side (base station)
@@ -47,12 +47,12 @@ The laptop runs:
 ```
 [ JETSON 1 — ausra_1 ]                              [ Zenoh ]           [ LAPTOP — Base Station ]
 
-SLAM ──► /map ──► relay_node ──(throttle)──► /ausra_1/map_relay  ═══►  map_expansion_node ──► /ausra_1/map_fixed ──┐
+SLAM ──► /map ──► relay_node ──(throttle)──► /ausra_1/map  ═══►  map_expansion_node ──► /ausra_1/map_fixed ──┐
                    relay_node (1Hz) ─────────► /ausra_1/heartbeat ═══►                                              │
                                                                                                                     ├──► map_merge ──► /map_merged
 [ JETSON 2 — ausra_2 ]                                                                                             │
                                                                                                                     │
-SLAM ──► /map ──► relay_node ──(throttle)──► /ausra_2/map_relay  ═══►  map_expansion_node ──► /ausra_2/map_fixed ──┘
+SLAM ──► /map ──► relay_node ──(throttle)──► /ausra_2/map  ═══►  map_expansion_node ──► /ausra_2/map_fixed ──┘
                    relay_node (1Hz) ─────────► /ausra_2/heartbeat ═══►
 ```
 
@@ -64,7 +64,7 @@ ROS 2 can automatically prefix all topics via `--namespace`. This would turn `/c
 
 **Why we don't do this:** If the entire hardware stack is namespaced, DDS broadcasts ALL topics over WiFi — including `/ausra_1/scan` (LiDAR point cloud, ~500 KB/s) and `/ausra_1/odom` (100 Hz). This would saturate the WiFi link.
 
-The relay_node acts as a **firewall**: only 2 lightweight topics (`/map_relay`, `/heartbeat`) cross the WiFi boundary via Zenoh. All internal heavy topics stay local on the Jetson.
+The relay_node acts as a **firewall**: only 2 lightweight topics (`/map`, `/heartbeat`) cross the WiFi boundary via Zenoh. All internal heavy topics stay local on the Jetson.
 
 ---
 

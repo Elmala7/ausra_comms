@@ -5,9 +5,13 @@
       domain: 0,
       namespace: "/",
       allow: {
-        publishers: [],
+        publishers: [
+          // Uncomment to enable manual teleoperation from the laptop:
+          "/cmd_vel",
+          "/ausra_.*/cmd_vel",
+        ],
         subscribers: [
-          "/ausra_.*/map_relay",
+          "/ausra_.*/map",
           "/ausra_.*/map_compressed",
           "/ausra_.*/heartbeat",
         ],

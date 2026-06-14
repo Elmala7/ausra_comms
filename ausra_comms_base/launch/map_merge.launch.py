@@ -42,7 +42,7 @@ def launch_setup(context, *args, **kwargs):
     )))
 
     for robot_name, cfg in robot_config.items():
-        slam_topic = f'/{robot_name}/map_relay'
+        slam_topic = f'/{robot_name}/map'
         output_topic = f'/{robot_name}/{MAP_FIXED_SUFFIX}'
 
         actions.append(LogInfo(msg=(

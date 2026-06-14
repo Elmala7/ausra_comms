@@ -56,7 +56,7 @@ class RelayNode(Node):
         )
 
         self.map_pub = self.create_publisher(
-            OccupancyGrid, f'{prefix}/map_relay', map_qos)
+            OccupancyGrid, f'{prefix}/map', map_qos)
 
         if self.enable_compression:
             self.map_compressed_pub = self.create_publisher(

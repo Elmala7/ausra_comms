@@ -32,7 +32,7 @@ By default, ROS 2 uses DDS (UDP multicast) which floods the WiFi network with di
 
 | Local topic | Swarm topic | Transport | Purpose |
 |-------------|-------------|-----------|---------|
-| `/map` or `/ausra_X/map` | `/ausra_X/map_relay` | Zenoh | Full SLAM map — throttled to 1 msg / 5s |
+| `/map` or `/ausra_X/map` | `/ausra_X/map` | Zenoh | Full SLAM map — throttled to 1 msg / 5s |
 | (generated) | `/ausra_X/heartbeat` | Zenoh | 1 Hz liveness check |
 
 When compression is enabled (`enable_compression: true`):
@@ -92,7 +92,7 @@ Even though the laptop merges all maps into `/map_merged`, **each Jetson retains
 | Navigation | ✅ On-board (decentralised) |
 | Map merge | Laptop only (centralised) |
 | Transport | Zenoh bridge (peer mesh) |
-| Cross-WiFi topics | `/ausra_*/map_relay`, `/ausra_*/heartbeat` |
+| Cross-WiFi topics | `/ausra_*/map`, `/ausra_*/heartbeat` |
 | Map compression | Available (disabled by default) |
 | Adaptive throttle | ✅ Enabled |
 | Delta detection | ✅ Enabled |
