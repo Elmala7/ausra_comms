@@ -128,21 +128,6 @@ export ROS_LOCALHOST_ONLY=1     # <-- new, mandatory with Zenoh
 ros2 launch ausra_comms hardware_with_comms.launch.py robot_name:=ausra_1
 ```
 
-Expected log lines (in order, with delays):
-
-```
-╔══ JETSON BRINGUP — Hardware + AUSRA Comms ══╗
-[hardware_full_stack ... starts]
->>> Starting relay_node (AUSRA comms layer)...
-[relay_node]: Relay active → ausra_1 | map throttle every 5.0s
->>> Starting zenoh-bridge-ros2dds for ausra_1 ...
-[zenoh-bridge-ros2dds] ... Zenoh session opened, namespace: /ausra_1
-```
-
-### 2.2 Jetson 2 (`ausra_2`)
-
-Identical, with `robot_name:=ausra_2`.
-
 ### 2.3 Laptop (base station)
 
 ```bash

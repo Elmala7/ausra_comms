@@ -49,6 +49,8 @@ def generate_launch_description():
                                description='Auto-nudge robot to seed SLAM'),
         DeclareLaunchArgument('use_zenoh', default_value='true',
                                description='Start Zenoh cross-WiFi bridge'),
+        DeclareLaunchArgument('enable_compression', default_value='true',
+                               description='Enable zlib map compression'),
 
         LogInfo(msg='\n'
             '╔══════════════════════════════════════════════════════════════╗\n'
@@ -81,7 +83,7 @@ def generate_launch_description():
                         'robot_name': robot_name,
                         'map_interval_sec': 5.0,
                         'base_station_ip': '192.168.1.34',
-                        'enable_compression': False,
+                        'enable_compression': LaunchConfiguration('enable_compression'),
                         'enable_adaptive_throttle': True,
                         'enable_delta_detection': True,
                         'delta_threshold': 0.01,

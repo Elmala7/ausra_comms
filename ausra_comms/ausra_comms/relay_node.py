@@ -19,7 +19,7 @@ class RelayNode(Node):
         self.declare_parameter('robot_name', 'ausra_1')
         self.declare_parameter('map_interval_sec', 5.0)
         self.declare_parameter('base_station_ip', '192.168.1.34')
-        self.declare_parameter('enable_compression', False)
+        self.declare_parameter('enable_compression', True)
         self.declare_parameter('enable_adaptive_throttle', True)
         self.declare_parameter('enable_delta_detection', True)
         self.declare_parameter('delta_threshold', 0.01)

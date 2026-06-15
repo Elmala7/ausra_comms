@@ -8,6 +8,12 @@ export ROS_DOMAIN_ID=0
 
 USE_ZENOH="${USE_ZENOH:-true}"
 
+if [ "$USE_ZENOH" = "true" ]; then
+    export ROS_LOCALHOST_ONLY=1
+else
+    export ROS_LOCALHOST_ONLY=0
+fi
+
 echo "============================================"
 echo "[Base] AUSRA Base Station — 2-Jetson Mode"
 echo "[Base] Checking Jetson connectivity..."
