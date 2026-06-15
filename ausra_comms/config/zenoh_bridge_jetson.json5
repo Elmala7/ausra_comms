@@ -6,17 +6,14 @@
       namespace: "/",
       allow: {
         publishers: [
-          "/ausra_.*/map",
+          // "/ausra_.*/map",
           "/ausra_.*/map_compressed",
           "/ausra_.*/heartbeat",
         ],
         subscribers: [
-          "/ausra_.*/map",
+          // "/ausra_.*/map",
           "/ausra_.*/map_compressed",
           "/ausra_.*/heartbeat",
-          // Uncomment to enable manual teleoperation from the laptop:
-          // "/cmd_vel",
-          // "/ausra_.*/cmd_vel",
         ],
         service_servers: [],
         service_clients: [],

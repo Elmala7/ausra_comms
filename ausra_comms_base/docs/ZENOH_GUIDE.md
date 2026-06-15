@@ -130,6 +130,8 @@ ros2 launch ausra_comms hardware_with_comms.launch.py robot_name:=ausra_1
 
 ### 2.3 Laptop (base station)
 
+To start the base station with the default robot configurations (`ausra_1` and `ausra_2` at `0.0:0.0` offsets):
+
 ```bash
 cd ~/ausra_ws
 source /opt/ros/humble/setup.bash
@@ -139,14 +141,21 @@ cd src/AUSRA-Autonomous-System-hardware_with_nav2/ausra_comms_base/scripts
 ./start_base.sh
 ```
 
-`start_base.sh` sets `ROS_LOCALHOST_ONLY=1` for you (it reads `USE_ZENOH`, which defaults to `true`). It pings both Jetsons, then launches `base_station.launch.py` which starts the laptop Zenoh bridge + map merge + RViz2.
+#### Specifying Robot Configurations & Namespaces
+If you need to change the namespaces or initial poses of the robots to merge, you can pass the `robot_config` argument directly to the script:
 
-If you'd rather call the launch file directly:
+```bash
+./start_base.sh robot_config:="ausra_1:0.0:0.0 ausra_2:1.5:-2.0"
+```
+
+The script automatically sets `ROS_LOCALHOST_ONLY=1` (when using Zenoh), pings the Jetson IPs to verify network connection, and forwards any CLI arguments to the underlying launch file.
+
+If you prefer to call the launch file directly:
 
 ```bash
 export ROS_DOMAIN_ID=0
 export ROS_LOCALHOST_ONLY=1
-ros2 launch ausra_comms_base base_station.launch.py
+ros2 launch ausra_comms_base base_station.launch.py robot_config:="ausra_1:0.0:0.0 ausra_2:1.5:-2.0"
 ```
 
 ---

@@ -7,8 +7,8 @@
       allow: {
         publishers: [],
         subscribers: [
-          // "/ausra_.*/map",
-          "/ausra_.*/map_compressed",
+          "/ausra_.*/map",
+          // "/ausra_.*/map_compressed",
           "/ausra_.*/heartbeat",
         ],
         service_servers: [],

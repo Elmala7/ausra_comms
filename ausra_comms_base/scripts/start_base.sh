@@ -57,7 +57,7 @@ echo "[Base] Launching: Zenoh bridge + decompressor + map merge + RViz2"
 echo "[Base] USE_ZENOH=${USE_ZENOH}  ROS_LOCALHOST_ONLY=${ROS_LOCALHOST_ONLY}"
 echo "============================================"
 
-ros2 launch ausra_comms_base base_station.launch.py use_zenoh:=${USE_ZENOH} &
+ros2 launch ausra_comms_base base_station.launch.py use_zenoh:=${USE_ZENOH} "$@" &
 BASE_PID=$!
 sleep 3
 

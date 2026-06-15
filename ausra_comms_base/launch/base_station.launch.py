@@ -40,17 +40,6 @@ def generate_launch_description():
             condition=IfCondition(use_zenoh),
         ),
 
-        LogInfo(msg='>>> Starting map decompressor...'),
-        Node(
-            package='ausra_comms_base',
-            executable='map_decompressor_node',
-            name='map_decompressor_node',
-            output='screen',
-            parameters=[{
-                'robots': ['ausra_1', 'ausra_2'],
-            }],
-        ),
-
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource([
                 bringup_share,

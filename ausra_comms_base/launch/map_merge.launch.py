@@ -65,8 +65,9 @@ def launch_setup(context, *args, **kwargs):
                 'canvas_resolution':  CANVAS_RESOLUTION,
                 'canvas_origin_x':    CANVAS_ORIGIN_X,
                 'canvas_origin_y':    CANVAS_ORIGIN_Y,
-                'publish_rate_hz':    1.0,
+                'publish_rate_hz':    0.2,
                 'use_transient_local': False,
+                'output_frame_id':     'map',
             }],
             output='screen',
         )
