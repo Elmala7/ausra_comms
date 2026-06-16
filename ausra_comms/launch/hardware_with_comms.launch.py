@@ -49,6 +49,8 @@ def generate_launch_description():
                                description='Auto-nudge robot to seed SLAM'),
         DeclareLaunchArgument('use_zenoh', default_value='true',
                                description='Start Zenoh cross-WiFi bridge'),
+        DeclareLaunchArgument('enable_compression', default_value='true',
+                               description='zlib-compress maps to /ausra_X/map_compressed'),
 
         LogInfo(msg='\n'
             '╔══════════════════════════════════════════════════════════════╗\n'

@@ -7,8 +7,7 @@
       allow: {
         publishers: [],
         subscribers: [
-          "/ausra_.*/map",
-          // "/ausra_.*/map_compressed",
+          "/ausra_.*/map_compressed",
           "/ausra_.*/heartbeat",
         ],
         service_servers: [],
@@ -37,8 +36,8 @@
   },
   connect: {
     endpoints: [
-      "tcp/192.168.1.33:7447",
-      "tcp/192.168.1.42:7447",
+      "tcp/192.168.0.165:7447",
+      "tcp/192.168.0.129:7447",
     ],
   },
 }

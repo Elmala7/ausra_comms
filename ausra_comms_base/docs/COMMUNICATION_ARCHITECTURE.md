@@ -32,17 +32,19 @@ By default, ROS 2 uses DDS (UDP multicast) which floods the WiFi network with di
 
 | Local topic | Swarm topic | Transport | Purpose |
 |-------------|-------------|-----------|---------|
-| `/map` or `/ausra_X/map` | `/ausra_X/map` | Zenoh | Full SLAM map — throttled to 1 msg / 5s |
+| `/map` or `/ausra_X/map` | `/ausra_X/map_compressed` | Zenoh | Full SLAM map, zlib-compressed (~1MB → ~1KB on sparse maps) |
 | (generated) | `/ausra_X/heartbeat` | Zenoh | 1 Hz liveness check |
 
-When compression is enabled (`enable_compression: true`):
+When compression is disabled (`enable_compression:=false`):
 
 | Local topic | Swarm topic | Transport | Purpose |
 |-------------|-------------|-----------|---------|
-| `/map` or `/ausra_X/map` | `/ausra_X/map_compressed` | Zenoh | zlib-compressed map (~80% smaller) |
+| `/map` or `/ausra_X/map` | `/ausra_X/map` | Zenoh | Raw OccupancyGrid (~1MB) — throttled to 1 msg / 5s |
 
-**Bandwidth Optimizations (available):**
-1. **zlib Compression** (disabled by default): OccupancyGrids compress well (~80-95% reduction). Enable via `enable_compression: true` in the launch file.
+The relay publishes the compressed topic **xor** the raw topic, never both. On the laptop, `map_decompressor_node` reconstructs `/ausra_X/map` from `/ausra_X/map_compressed`, so the map-merge pipeline is identical in both modes.
+
+**Bandwidth Optimizations:**
+1. **zlib Compression** (enabled by default): OccupancyGrids compress >99% on mostly-unknown maps. Payload is a `UInt8MultiArray` with TRANSIENT_LOCAL+RELIABLE QoS. Disable via `enable_compression:=false`.
 2. **Adaptive Throttling** (enabled): Background thread pings the base station. If latency spikes (>150ms), map publish rate throttles down from 5s to 15s or 30s.
 3. **Delta Detection** (enabled): Computes MD5 hash of the map data. Skips publishing if the map hasn't changed.
 
@@ -92,7 +94,7 @@ Even though the laptop merges all maps into `/map_merged`, **each Jetson retains
 | Navigation | ✅ On-board (decentralised) |
 | Map merge | Laptop only (centralised) |
 | Transport | Zenoh bridge (peer mesh) |
-| Cross-WiFi topics | `/ausra_*/map`, `/ausra_*/heartbeat` |
-| Map compression | Available (disabled by default) |
+| Cross-WiFi topics | `/ausra_*/map_compressed`, `/ausra_*/heartbeat` |
+| Map compression | Enabled by default (UInt8MultiArray, ~99% on sparse maps) |
 | Adaptive throttle | ✅ Enabled |
 | Delta detection | ✅ Enabled |

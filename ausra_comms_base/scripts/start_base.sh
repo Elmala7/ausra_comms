@@ -19,8 +19,8 @@ echo "[Base] AUSRA Base Station — 2-Jetson Mode"
 echo "[Base] Checking Jetson connectivity..."
 echo "============================================"
 
-JETSON1_IP="192.168.1.33"
-JETSON2_IP="192.168.1.4"
+JETSON1_IP="192.168.0.165"
+JETSON2_IP="192.168.0.129"
 
 ALL_OK=true
 
@@ -57,21 +57,4 @@ echo "[Base] Launching: Zenoh bridge + decompressor + map merge + RViz2"
 echo "[Base] USE_ZENOH=${USE_ZENOH}  ROS_LOCALHOST_ONLY=${ROS_LOCALHOST_ONLY}"
 echo "============================================"
 
-ros2 launch ausra_comms_base base_station.launch.py use_zenoh:=${USE_ZENOH} "$@" &
-BASE_PID=$!
-sleep 3
-
-echo "============================================"
-echo "[Base] Running. Press Ctrl+C to stop."
-echo "============================================"
-
-cleanup() {
-    echo ""
-    echo "[Base] Shutting down..."
-    kill $BASE_PID 2>/dev/null
-    wait 2>/dev/null
-    echo "[Base] Done."
-}
-trap cleanup SIGINT SIGTERM
-
-wait
+ros2 launch ausra_comms_base base_station.launch.py use_zenoh:=${USE_ZENOH} "$@"

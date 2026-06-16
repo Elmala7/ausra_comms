@@ -23,9 +23,17 @@ def generate_launch_description():
         'ZENOH_BRIDGE_BIN',
         '/opt/zenoh-bridge/zenoh-bridge-ros2dds')
 
+    use_rviz = LaunchConfiguration('use_rviz')
+    use_compression = LaunchConfiguration('use_compression')
+
     return LaunchDescription([
         DeclareLaunchArgument('use_zenoh', default_value='true',
                                description='Start Zenoh cross-WiFi bridge'),
+        DeclareLaunchArgument('use_rviz', default_value='true',
+                               description='Start RViz2 base station GUI'),
+        DeclareLaunchArgument('use_compression', default_value='true',
+                               description='Decompress /ausra_X/map_compressed '
+                                           'into /ausra_X/map for map merge'),
 
         ExecuteProcess(
             cmd=[zenoh_bin, '-c', zenoh_cfg],
@@ -40,6 +48,19 @@ def generate_launch_description():
             condition=IfCondition(use_zenoh),
         ),
 
+        # Decompress incoming /ausra_X/map_compressed → /ausra_X/map so the
+        # map_merge pipeline (which subscribes to /ausra_X/map) sees the maps.
+        Node(
+            package='ausra_comms_base',
+            executable='map_decompressor_node',
+            name='map_decompressor_node',
+            output='screen',
+            parameters=[{
+                'robots': ['ausra_1', 'ausra_2'],
+            }],
+            condition=IfCondition(use_compression),
+        ),
+
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource([
                 bringup_share,
@@ -52,5 +73,6 @@ def generate_launch_description():
             executable='rviz2',
             name='rviz2',
             output='screen',
+            condition=IfCondition(use_rviz),
         ),
     ])

@@ -2,7 +2,7 @@
 
 Cross-WiFi transport for the AUSRA swarm using `zenoh-bridge-ros2dds`.
 
-This guide replaces the original "all DDS over WiFi" model. After applying this change, **Zenoh is the only channel that crosses WiFi**. DDS is pinned to loopback on every machine via `ROS_LOCALHOST_ONLY=1`. Only an explicit allowlist of topics is bridged: `/ausra_*/map`, `/ausra_*/map_compressed`, and `/ausra_*/heartbeat`.
+This guide replaces the original "all DDS over WiFi" model. After applying this change, **Zenoh is the only channel that crosses WiFi**. DDS is pinned to loopback on every machine via `ROS_LOCALHOST_ONLY=1`. Only an explicit allowlist of topics is bridged: `/ausra_*/map_compressed` and `/ausra_*/heartbeat` (the default compressed map path). `/ausra_*/map` is only bridged when `enable_compression:=false`.
 
 ---
 
@@ -30,7 +30,7 @@ These were chosen on your behalf when you said "do the right thing." Override an
 | Bridge install path | `/opt/zenoh-bridge/zenoh-bridge-ros2dds` | env var `ZENOH_BRIDGE_BIN` (per launch) |
 | Per-robot Zenoh namespace | derived from `robot_name` launch arg (`/ausra_1`, `/ausra_2`) | already automatic |
 | Bridge mode | peer mesh on all 3 machines | `*.json5` `mode` |
-| Allowlist | `/ausra_*/map`, `/ausra_*/map_compressed`, `/ausra_*/heartbeat` (+ commented future entries) | `*.json5` `plugins.ros2dds.allow.*` |
+| Allowlist | `/ausra_*/map_compressed`, `/ausra_*/heartbeat` (Jetson also publishes; laptop subscribes). `/ausra_*/map` only when `enable_compression:=false` | `*.json5` `plugins.ros2dds.allow.*` |
 | DDS scope | loopback only when `use_zenoh:=true` (the default) | env `ROS_LOCALHOST_ONLY` |
 | Bridge crash behavior | respawn with 2s delay; relay/SLAM/Nav2 unaffected | `respawn=True` in launch files |
 
