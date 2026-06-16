@@ -28,7 +28,12 @@ map_merge:
     known_init_poses:  true
 
     # ── Timing ────────────────────────────────────────────────────────────────
-    merging_rate:      1.0
+    # merging_rate matched to relay_node's map_interval_sec (5.0s = 0.2 Hz).
+    # The relay ships a map at most every 5s, so merging faster just
+    # recomposites identical canvases and wastes CPU. Matters most on the Jetson
+    # in the decentralized topology (SLAM + merge share one CPU).
+    # See docs/NETWORKING_GUIDE.md §3.1.
+    merging_rate:      0.2
     discovery_rate:    0.05
 
     # ── Unused (known_init_poses=true bypasses feature matching) ──────────────

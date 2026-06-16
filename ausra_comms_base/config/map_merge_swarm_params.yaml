@@ -6,7 +6,10 @@ map_merge:
     merged_map_topic:  /map_merged
     world_frame:       map
     known_init_poses:  true
-    merging_rate:      1.0
+    # merging_rate matched to relay_node's map_interval_sec (5.0s = 0.2 Hz).
+    # The relay ships a map at most every 5s, so merging faster just
+    # recomposites identical canvases and wastes CPU. See docs/NETWORKING_GUIDE.md.
+    merging_rate:      0.2
     discovery_rate:    0.05
     estimation_rate:        0.5
     estimation_confidence:  1.0

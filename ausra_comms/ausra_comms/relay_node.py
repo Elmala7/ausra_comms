@@ -110,6 +110,14 @@ class RelayNode(Node):
         if now - self.last_map_sent < self.map_interval:
             return
 
+        # Advance the throttle clock here, BEFORE the delta check, so this var
+        # means "last map evaluated" not "last map sent". A stationary robot
+        # (maps keep getting delta-skipped) is then gated to one evaluation per
+        # map_interval instead of flooding the delta path — and the log — on
+        # every SLAM update. Tradeoff: the first changed map after the robot
+        # resumes motion can wait up to map_interval s, consistent with throttle intent.
+        self.last_map_sent = now
+
         if self.enable_delta and self._is_map_unchanged(msg):
             self.delta_skips += 1
             if self.delta_skips % 10 == 1:
@@ -122,7 +130,6 @@ class RelayNode(Node):
         else:
             self.map_pub.publish(msg)
 
-        self.last_map_sent = now
         self.map_count += 1
 
         self.get_logger().info(
