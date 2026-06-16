@@ -115,9 +115,15 @@ ros2 launch ausra_comms hardware_with_comms.launch.py robot_name:=ausra_1
 Wait until you see:
 ```
 >>> Starting relay_node...
-[relay_node]: Relay active → ausra_1 | map throttle 5.0s | compression=False
+[relay_node]: Relay active → ausra_1 | map throttle 5.0s | compression=True
 >>> Starting zenoh-bridge-ros2dds for ausra_1 ...
 ```
+
+> Compression is **on by default**. In this mode the Jetson publishes
+> `/ausra_1/map_compressed` (not raw `/ausra_1/map`); the laptop's
+> `map_decompressor_node` reconstructs `/ausra_1/map` on the receiving side.
+> To run uncompressed for debugging: append `enable_compression:=false` here AND
+> add `/ausra_.*/map` to both Zenoh allowlists (see ZENOH_GUIDE.md).
 
 ### 3B — Jetson 2: Start Hardware + Comms
 
@@ -159,13 +165,20 @@ ros2 topic echo /ausra_2/heartbeat --once
 
 # 2. List robot topics
 ros2 topic list | grep ausra
-# Expected:
+# Expected (compression ON — default):
 #   /ausra_1/heartbeat
-#   /ausra_1/map
+#   /ausra_1/map              ← reconstructed by decompressor ON THE LAPTOP
+#   /ausra_1/map_compressed   ← what actually crosses Zenoh
 #   /ausra_1/map_fixed
 #   /ausra_2/heartbeat
 #   /ausra_2/map
+#   /ausra_2/map_compressed
 #   /ausra_2/map_fixed
+
+# 2b. Confirm the compressed map is flowing over Zenoh (rate, not content):
+ros2 topic hz /ausra_1/map_compressed     # ~0.2 Hz = healthy
+# The decompressor then republishes /ausra_1/map — echo/rqt that one for content:
+ros2 topic echo /ausra_1/map --no-arr --once
 
 # 3. Check merged map
 ros2 topic echo /map_merged --no-arr --once
