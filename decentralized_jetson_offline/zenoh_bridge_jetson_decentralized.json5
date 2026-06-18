@@ -1,0 +1,70 @@
+// ============================================================================
+// zenoh_bridge_jetson_decentralized.json5
+// AUSRA — Zenoh bridge config for a Jetson running the DECENTRALIZED stack.
+//
+// Difference vs the semi-centralized ausra_comms/config/zenoh_bridge_jetson.json5:
+//   Functionally identical — the existing Jetson config ALREADY publishes AND
+//   subscribes /ausra_*/map_compressed, which is exactly what decentralization
+//   needs (each robot must both ship its own compressed map and receive peers').
+//   This file is provided so the offline bundle is self-contained and so the
+//   intent ("every robot is a full peer") is explicit in one place.
+//
+//   - PUBLISH   /ausra_*/map_compressed  → this robot's own map goes to peers
+//   - SUBSCRIBE /ausra_*/map_compressed  → peers' maps arrive for local merge
+//   - /ausra_*/heartbeat both ways       → liveness / peer presence
+//   - Raw /ausra_*/map is intentionally NOT bridged. It only exists locally
+//     (relay sends compressed-only); the local SLAM map stays on DDS loopback.
+//
+// EDIT BEFORE USE:
+//   connect.endpoints — set to the real WiFi IPs of the OTHER robots + laptop.
+// ============================================================================
+{
+  plugins: {
+    ros2dds: {
+      domain: 0,
+      namespace: "/",
+      allow: {
+        publishers: [
+          "/ausra_.*/map_compressed",
+          "/ausra_.*/heartbeat",
+        ],
+        subscribers: [
+          "/ausra_.*/map_compressed",
+          "/ausra_.*/heartbeat",
+        ],
+        service_servers: [],
+        service_clients: [],
+        action_servers: [],
+        action_clients: [],
+      },
+      // Preserves the TRANSIENT_LOCAL + RELIABLE QoS of the compressed map
+      // topic across the bridge so late-joining peers still get the last map.
+      reliable_routes_blocking: true,
+    },
+  },
+  mode: "peer",
+  listen: {
+    endpoints: [
+      "tcp/0.0.0.0:7447"
+    ],
+  },
+  scouting: {
+    multicast: {
+      enabled: true,
+      address: "224.0.0.224:7446",
+      interface: "auto",
+    },
+    gossip: {
+      enabled: true,
+    },
+  },
+  // Point at every OTHER peer (robots + laptop). Harmless to list self; gossip
+  // de-duplicates. Replace with your real WiFi IPs before deployment.
+  connect: {
+    endpoints: [
+      "tcp/192.168.1.33:7447",   // peer robot / laptop
+      "tcp/192.168.1.42:7447",   // peer robot / laptop
+      "tcp/192.168.1.34:7447",   // peer robot / laptop
+    ],
+  },
+}

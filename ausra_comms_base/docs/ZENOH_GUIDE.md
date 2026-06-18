@@ -125,7 +125,7 @@ source install/setup.bash
 export ROS_DOMAIN_ID=0
 export ROS_LOCALHOST_ONLY=1     # <-- new, mandatory with Zenoh
 
-ros2 launch ausra_comms hardware_with_comms.launch.py robot_name:=ausra_1
+ros2 launch ausra_comms hardware_with_comms.launch.py robot_name:=ausra_1 robot_config:="ausra_1:1.0:0.0 ausra_2:3.5:0.0"
 ```
 
 ### 2.3 Laptop (base station)
@@ -138,7 +138,7 @@ source /opt/ros/humble/setup.bash
 source install/setup.bash
 
 cd src/AUSRA-Autonomous-System-hardware_with_nav2/ausra_comms_base/scripts
-./start_base.sh
+./start_base.sh robot_config:="ausra_1:1.0:0.0 ausra_2:1.0:0.4"
 ```
 
 #### Specifying Robot Configurations & Namespaces

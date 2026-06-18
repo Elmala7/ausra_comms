@@ -82,7 +82,7 @@ def generate_launch_description():
                     parameters=[{
                         'robot_name': robot_name,
                         'map_interval_sec': 5.0,
-                        'base_station_ip': '192.168.1.34',
+                        'base_station_ip': '192.168.0.105',
                         'enable_compression': LaunchConfiguration('enable_compression'),
                         'enable_adaptive_throttle': True,
                         'enable_delta_detection': True,
