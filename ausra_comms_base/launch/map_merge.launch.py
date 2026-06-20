@@ -1,90 +1,53 @@
-# ============================================================
-# FILE: map_merge.launch.py
-# PACKAGE: ausra_comms_base
-# RUNS ON: Laptop (base station)
-# PURPOSE: Launches the AUSRA map_expansion_node for each robot
-#          plus multirobot_map_merge to produce /map_merged.
-#
-# ARCHITECTURE:
-#   Each robot's /ausra_X/map (from relay_node via DDS)
-#   is fed through a map_expansion_node that stamps it onto a
-#   fixed-size canvas. The merger then overlays the canvases.
-#
-#   /ausra_1/map → map_expansion_node → /ausra_1/map_fixed ─┐
-#   /ausra_2/map → map_expansion_node → /ausra_2/map_fixed ──┼→ map_merge → /map_merged
-#
-# A phantom robot (ausra_99) always publishes an all-Unknown
-# canvas to prevent the composeGrids segfault when fewer
-# than 2 real maps are available at startup.
-#
-# EDIT GUIDE:
-#   robot_offset_x / robot_offset_y — physical spawn offsets
-#   for each robot, measured from a common origin point.
-#   Set to 0.0 for testing, fill in real values for deployment.
-# ============================================================
-
 import os
 from launch import LaunchDescription
-from launch.actions import LogInfo, TimerAction
+from launch.actions import LogInfo, TimerAction, DeclareLaunchArgument, OpaqueFunction
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 
-
-# ==============================================================================
-# ── ROBOT CONFIG — Edit spawn offsets for your physical deployment ────────────
-# robot_offset_x/y: tape-measured distance from a common origin point (metres)
-# slam_topic: the topic this robot's map arrives on (from relay_node via DDS)
-# ==============================================================================
-
-ROBOT_CONFIG = {
-    'ausra_1': {
-        'offset_x': 0.0,
-        'offset_y': 0.0,
-        'slam_topic': '/ausra_1/map',
-    },
-    'ausra_2': {
-        'offset_x': 0.0,
-        'offset_y': 0.0,
-        'slam_topic': '/ausra_2/map',
-    },
-}
-
-# Canvas parameters (50m x 50m at 0.05m/cell = 1000x1000 grid)
 CANVAS_WIDTH      = 1000
 CANVAS_HEIGHT     = 1000
 CANVAS_RESOLUTION = 0.05
 CANVAS_ORIGIN_X   = -25.0
 CANVAS_ORIGIN_Y   = -25.0
-
 MAP_FIXED_SUFFIX  = 'map_fixed'
 
 
-def generate_launch_description():
-    ld = LaunchDescription()
-
+def launch_setup(context, *args, **kwargs):
+    actions = []
     pkg_share = get_package_share_directory('ausra_comms_base')
     params_file = os.path.join(pkg_share, 'config', 'map_merge_swarm_params.yaml')
 
-    # ── Startup log ────────────────────────────────────────────────────────
-    ld.add_action(LogInfo(msg=(
+    robot_config_str = LaunchConfiguration('robot_config').perform(context)
+    robot_config = {}
+
+    if robot_config_str.strip():
+        for entry in robot_config_str.split():
+            try:
+                name, x_str, y_str = entry.split(':')
+                robot_config[name] = {
+                    'offset_x': float(x_str),
+                    'offset_y': float(y_str),
+                }
+            except ValueError:
+                actions.append(LogInfo(msg=f'[ERROR] Invalid robot config: {entry}. Expected name:x:y'))
+
+    robot_count = len(robot_config)
+
+    actions.append(LogInfo(msg=(
         '\n'
         '╔══════════════════════════════════════════════════════════════╗\n'
         '║         AUSRA Base Station — Map Merge Pipeline             ║\n'
-        '╠══════════════════════════════════════════════════════════════╣\n'
-        '║ INPUT:  /ausra_1/map (Jetson 1), /ausra_2/map (Jetson 2)    ║\n'
-        '║ OUTPUT: /map_merged                                          ║\n'
-        '║ CANVAS: 1000×1000 @ 0.05 m/cell | Origin (-25.0, -25.0)     ║\n'
         '╚══════════════════════════════════════════════════════════════╝\n'
     )))
 
-    # ── Map Expansion Nodes (one per real robot) ───────────────────────────
-    for robot_name, cfg in ROBOT_CONFIG.items():
+    for robot_name, cfg in robot_config.items():
+        slam_topic = f'/{robot_name}/map'
         output_topic = f'/{robot_name}/{MAP_FIXED_SUFFIX}'
 
-        ld.add_action(LogInfo(msg=(
+        actions.append(LogInfo(msg=(
             f'[AUSRA] {robot_name}: '
-            f'SLAM topic={cfg["slam_topic"]} → {output_topic} | '
-            f'offset=({cfg["offset_x"]:.3f}, {cfg["offset_y"]:.3f})'
+            f'{slam_topic} → {output_topic}'
         )))
 
         expansion_node = Node(
@@ -93,7 +56,7 @@ def generate_launch_description():
             name=f'map_expansion_{robot_name}',
             namespace='',
             parameters=[{
-                'input_topic':        cfg['slam_topic'],
+                'input_topic':        slam_topic,
                 'output_topic':       output_topic,
                 'robot_offset_x':     cfg['offset_x'],
                 'robot_offset_y':     cfg['offset_y'],
@@ -102,39 +65,21 @@ def generate_launch_description():
                 'canvas_resolution':  CANVAS_RESOLUTION,
                 'canvas_origin_x':    CANVAS_ORIGIN_X,
                 'canvas_origin_y':    CANVAS_ORIGIN_Y,
-                'publish_rate_hz':    1.0,
+                'publish_rate_hz':    0.2,
+                'use_transient_local': False,
+                'output_frame_id':     'map',
             }],
             output='screen',
         )
-        ld.add_action(expansion_node)
+        actions.append(expansion_node)
 
-    # ── Phantom Expansion Node ─────────────────────────────────────────────
-    # Prevents multirobot_map_merge from segfaulting with only 1 real map.
-    # Subscribes to a topic that never publishes, heartbeats all-Unknown.
-    phantom_node = Node(
-        package='ausra_map_merge_HW',
-        executable='map_expansion_node',
-        name='map_expansion_phantom',
-        namespace='',
-        parameters=[{
-            'input_topic':        '/map_phantom_never_published',
-            'output_topic':       f'/ausra_99/{MAP_FIXED_SUFFIX}',
-            'robot_offset_x':     0.0,
-            'robot_offset_y':     0.0,
-            'canvas_width':       CANVAS_WIDTH,
-            'canvas_height':      CANVAS_HEIGHT,
-            'canvas_resolution':  CANVAS_RESOLUTION,
-            'canvas_origin_x':    CANVAS_ORIGIN_X,
-            'canvas_origin_y':    CANVAS_ORIGIN_Y,
-            'publish_rate_hz':    1.0,
-        }],
-        output='screen',
-    )
-    ld.add_action(phantom_node)
+    dynamic_init_poses = {}
+    for robot_name in robot_config.keys():
+        dynamic_init_poses[f'/{robot_name}/map_merge/init_pose_x'] = 0.0
+        dynamic_init_poses[f'/{robot_name}/map_merge/init_pose_y'] = 0.0
+        dynamic_init_poses[f'/{robot_name}/map_merge/init_pose_z'] = 0.0
+        dynamic_init_poses[f'/{robot_name}/map_merge/init_pose_yaw'] = 0.0
 
-    # ── Central Map Merge Node ─────────────────────────────────────────────
-    # Delayed 2s to let heartbeat canvases publish at least once before
-    # the merger begins its discovery scan.
     map_merge_node = TimerAction(
         period=2.0,
         actions=[
@@ -144,11 +89,22 @@ def generate_launch_description():
                 executable='map_merge',
                 name='map_merge',
                 namespace='',
-                parameters=[params_file],
+                parameters=[params_file, dynamic_init_poses],
                 output='screen',
             ),
         ]
     )
-    ld.add_action(map_merge_node)
+    actions.append(map_merge_node)
 
-    return ld
+    return actions
+
+
+def generate_launch_description():
+    return LaunchDescription([
+        DeclareLaunchArgument(
+            'robot_config',
+            default_value='ausra_1:0.0:0.0 ausra_2:0.0:0.0',
+            description='Space-separated list: name:offset_x:offset_y'
+        ),
+        OpaqueFunction(function=launch_setup),
+    ])

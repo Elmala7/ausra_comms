@@ -1,0 +1,149 @@
+================================================================================
+AUSRA — OFFLINE DECENTRALIZATION INSTALL CHECKLIST (Jetson side)
+================================================================================
+Goal: turn a Jetson from the semi-centralized stack (SLAM + relay only) into a
+full decentralized peer that ALSO decompresses peers' maps and runs its own
+map merge locally. Do this on EACH Jetson.
+
+This bundle (decentralized_jetson_offline/) contains the files that do NOT yet
+exist on the Jetson. The C++ packages must be copied from this laptop workspace
+and rebuilt on the Jetson (ARM) — they cannot be SCP'd as built artifacts.
+
+Assumed Jetson workspace root:  ~/ausra_NM_ws
+Assumed source dir:             ~/ausra_NM_ws/src/AUSRA-Autonomous-System
+Adjust paths if yours differ.
+
+--------------------------------------------------------------------------------
+STEP 0 — PRE-FLIGHT (on the Jetson)
+--------------------------------------------------------------------------------
+[ ] ROS 2 Humble installed and sourced:   source /opt/ros/humble/setup.bash
+[ ] zenoh-bridge-ros2dds binary present:  /opt/zenoh-bridge/zenoh-bridge-ros2dds
+        (or set ZENOH_BRIDGE_BIN to its path)
+[ ] lidar_slam_pkg already built (provides hardware_full_stack.launch.py)
+[ ] ausra_comms already built (semi-centralized stack working)
+
+--------------------------------------------------------------------------------
+STEP 1 — COPY C++ PACKAGES FROM LAPTOP  (run FROM the laptop)
+--------------------------------------------------------------------------------
+ausra_map_merge_HW  -> MUST be the updated version (adds output_frame_id param).
+multirobot_map_merge (m-explore-ros2/map_merge) -> unmodified upstream; copy it
+   only if the Jetson does not already have it BUILT. If unsure, copy it.
+
+    LAPTOP_SRC=~/ausra_ws/src/AUSRA-Autonomous-System-hardware_with_nav2
+    JETSON=user@<JETSON_IP>
+    JDST=~/ausra_NM_ws/src/AUSRA-Autonomous-System
+
+    # Updated C++ expansion node (REQUIRED — has output_frame_id):
+    scp -r $LAPTOP_SRC/ausra_map_merge_HW            $JETSON:$JDST/
+
+    # Map merge engine (copy if not already built on the Jetson):
+    ssh $JETSON 'mkdir -p '$JDST'/m-explore-ros2'
+    scp -r $LAPTOP_SRC/m-explore-ros2/map_merge      $JETSON:$JDST/m-explore-ros2/
+
+--------------------------------------------------------------------------------
+STEP 2 — COPY THIS BUNDLE'S FILES INTO PLACE  (run FROM the laptop)
+--------------------------------------------------------------------------------
+    BUNDLE=$LAPTOP_SRC/decentralized_jetson_offline
+
+    # (a) Decentralized launch file -> into the ausra_comms package launch dir:
+    scp $BUNDLE/decentralized_robot.launch.py \
+        $JETSON:$JDST/ausra_comms/launch/
+
+    # (b) Decentralized Zenoh config -> into ausra_comms config dir:
+    scp $BUNDLE/zenoh_bridge_jetson_decentralized.json5 \
+        $JETSON:$JDST/ausra_comms/config/
+
+NOTE: decentralized_robot.launch.py calls 'ros2 launch ausra_comms ...', so it
+      MUST live inside ausra_comms/launch/ (already globbed by ausra_comms/setup.py
+      via 'launch/*.launch.py'). No setup.py edit is required.
+
+--------------------------------------------------------------------------------
+STEP 3 — POINT THE LAUNCH AT THE DECENTRALIZED ZENOH CONFIG
+--------------------------------------------------------------------------------
+The included hardware_with_comms.launch.py defaults to zenoh_bridge_jetson.json5.
+That existing config already does pub+sub of map_compressed, so it WORKS AS-IS.
+The decentralized json5 is functionally identical (provided for clarity).
+
+To use the decentralized config explicitly, either:
+  Option A (simplest): overwrite the old config on the Jetson:
+      ssh $JETSON 'cp '$JDST'/ausra_comms/config/zenoh_bridge_jetson_decentralized.json5 \
+                      '$JDST'/ausra_comms/config/zenoh_bridge_jetson.json5'
+  Option B: set env var before launching:
+      export ZENOH_BRIDGE_CFG=.../zenoh_bridge_jetson_decentralized.json5
+      (only if you add support for that var; default launch reads the fixed name)
+
+[ ] EDIT connect.endpoints in the json5 to the REAL WiFi IPs of the other
+    robots + laptop before launching.
+
+--------------------------------------------------------------------------------
+STEP 4 — BUILD ON THE JETSON  (run ON the Jetson)
+--------------------------------------------------------------------------------
+    cd ~/ausra_NM_ws
+    source /opt/ros/humble/setup.bash
+    colcon build --packages-select ausra_comms ausra_map_merge_HW multirobot_map_merge
+    source install/setup.bash
+
+Expected: 3 packages finished. (The "ausra_map_merge_HW name convention" warning
+is cosmetic and safe to ignore.)
+
+--------------------------------------------------------------------------------
+STEP 5 — RUNTIME ENV  (every shell, every machine)
+--------------------------------------------------------------------------------
+    export ROS_DOMAIN_ID=0
+    export ROS_LOCALHOST_ONLY=1     # mandatory when use_zenoh:=true
+
+--------------------------------------------------------------------------------
+STEP 6 — LAUNCH  (on EACH robot — same robot_config, different robot_name)
+--------------------------------------------------------------------------------
+Robot 1:
+    ros2 launch ausra_comms decentralized_robot.launch.py \
+        robot_name:=ausra_1 \
+        robot_config:="ausra_1:0.0:0.0 ausra_2:1.5:-2.0"
+
+Robot 2:
+    ros2 launch ausra_comms decentralized_robot.launch.py \
+        robot_name:=ausra_2 \
+        robot_config:="ausra_1:0.0:0.0 ausra_2:1.5:-2.0"
+
+IMPORTANT:
+  - robot_config is the SAME string on every robot (all robots + offsets).
+  - Only robot_name changes per machine.
+  - Offsets are tape-measured physical spawn positions (metres).
+  - init_pose_* stay 0.0 everywhere — the launch injects them; do NOT put
+    offsets in the YAML (double-shift bug).
+
+--------------------------------------------------------------------------------
+STEP 7 — VERIFY  (on robot 1, as an example)
+--------------------------------------------------------------------------------
+[ ] Peer compressed map arriving over Zenoh:
+        ros2 topic hz /ausra_2/map_compressed
+[ ] Decompressor reconstructed peer grid with correct QoS:
+        ros2 topic info /ausra_2/map -v        # durability = TRANSIENT_LOCAL
+[ ] Decompressor is ignoring its own robot (check node log):
+        "Ignoring local robot: ausra_1"
+[ ] Local merged map exists and is namespaced:
+        ros2 topic echo /ausra_1/map_merged --once | head
+[ ] Own map is NOT on /ausra_1/map_compressed loopback decompress (it uses /map):
+        ros2 node info /map_expansion_ausra_1   # subscribed to /map
+
+--------------------------------------------------------------------------------
+STEP 8 — REVERT TO SEMI-CENTRALIZED (if needed)
+--------------------------------------------------------------------------------
+    pkill -f zenoh-bridge
+    unset ROS_LOCALHOST_ONLY
+    # then launch the old stack:
+    ros2 launch ausra_comms hardware_with_comms.launch.py robot_name:=ausra_1
+
+================================================================================
+FILE MANIFEST (this bundle)
+================================================================================
+  decentralized_robot.launch.py            -> ausra_comms/launch/
+  zenoh_bridge_jetson_decentralized.json5  -> ausra_comms/config/
+  install_instructions.txt                 -> (this file; reference only)
+
+Copied separately from the laptop workspace (not in this bundle):
+  ausra_map_merge_HW/        (updated C++ — REQUIRED)
+  m-explore-ros2/map_merge/  (multirobot_map_merge — copy if not already built)
+
+See ausra_comms_base/docs/DEPLOYMENT_DECENTRALIZED.md for the full rationale.
+================================================================================

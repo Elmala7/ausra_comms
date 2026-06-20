@@ -2,7 +2,7 @@
 
 Cross-WiFi transport for the AUSRA swarm using `zenoh-bridge-ros2dds`.
 
-This guide replaces the original "all DDS over WiFi" model. After applying this change, **Zenoh is the only channel that crosses WiFi**. DDS is pinned to loopback on every machine via `ROS_LOCALHOST_ONLY=1`. Only an explicit allowlist of topics is bridged: `/ausra_*/map`, `/ausra_*/pose`, `/ausra_*/heartbeat`.
+This guide replaces the original "all DDS over WiFi" model. After applying this change, **Zenoh is the only channel that crosses WiFi**. DDS is pinned to loopback on every machine via `ROS_LOCALHOST_ONLY=1`. Only an explicit allowlist of topics is bridged: `/ausra_*/map_compressed` and `/ausra_*/heartbeat` (the default compressed map path). `/ausra_*/map` is only bridged when `enable_compression:=false`.
 
 ---
 
@@ -30,7 +30,7 @@ These were chosen on your behalf when you said "do the right thing." Override an
 | Bridge install path | `/opt/zenoh-bridge/zenoh-bridge-ros2dds` | env var `ZENOH_BRIDGE_BIN` (per launch) |
 | Per-robot Zenoh namespace | derived from `robot_name` launch arg (`/ausra_1`, `/ausra_2`) | already automatic |
 | Bridge mode | peer mesh on all 3 machines | `*.json5` `mode` |
-| Allowlist | `/ausra_*/map`, `/ausra_*/pose`, `/ausra_*/heartbeat` (+ commented future entries) | `*.json5` `plugins.ros2dds.allow.*` |
+| Allowlist | `/ausra_*/map_compressed`, `/ausra_*/heartbeat` (Jetson also publishes; laptop subscribes). `/ausra_*/map` only when `enable_compression:=false` | `*.json5` `plugins.ros2dds.allow.*` |
 | DDS scope | loopback only when `use_zenoh:=true` (the default) | env `ROS_LOCALHOST_ONLY` |
 | Bridge crash behavior | respawn with 2s delay; relay/SLAM/Nav2 unaffected | `respawn=True` in launch files |
 
@@ -85,6 +85,30 @@ export ZENOH_BRIDGE_BIN=$HOME/zenoh-bridge/zenoh-bridge-ros2dds
 
 Both `hardware_with_comms.launch.py` and `base_station.launch.py` honor this env var.
 
+### 1.4 Step-by-Step Installation on Laptop (x86_64)
+
+To install the Zenoh bridge on your laptop:
+
+1. Open a terminal and download the `x86_64` standalone bridge release:
+   ```bash
+   cd /tmp
+   curl -LO https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds/releases/download/1.2.1/zenoh-plugin-ros2dds-1.2.1-x86_64-unknown-linux-gnu-standalone.zip
+   ```
+2. Create the installation directory and extract the binary:
+   ```bash
+   sudo mkdir -p /opt/zenoh-bridge
+   sudo unzip -o zenoh-plugin-ros2dds-1.2.1-x86_64-unknown-linux-gnu-standalone.zip -d /opt/zenoh-bridge
+   sudo chmod +x /opt/zenoh-bridge/zenoh-bridge-ros2dds
+   ```
+3. Test that the binary is installed correctly and check its version:
+   ```bash
+   /opt/zenoh-bridge/zenoh-bridge-ros2dds --version
+   ```
+   *Expected Output:*
+   ```text
+   zenoh-bridge-ros2dds v1.2.1
+   ```
+
 ---
 
 ## 2. Run the full system after this change
@@ -101,25 +125,12 @@ source install/setup.bash
 export ROS_DOMAIN_ID=0
 export ROS_LOCALHOST_ONLY=1     # <-- new, mandatory with Zenoh
 
-ros2 launch ausra_comms hardware_with_comms.launch.py robot_name:=ausra_1
+ros2 launch ausra_comms decentralized_robot.launch.py robot_name:=ausra_1 robot_config:="ausra_1:0.0:0.0 ausra_2:0.0:1.2" nudge_robot:=true
 ```
-
-Expected log lines (in order, with delays):
-
-```
-╔══ JETSON BRINGUP — Hardware + AUSRA Comms ══╗
-[hardware_full_stack ... starts]
->>> Starting relay_node (AUSRA comms layer)...
-[relay_node]: Relay active → ausra_1 | map throttle every 5.0s
->>> Starting zenoh-bridge-ros2dds for ausra_1 ...
-[zenoh-bridge-ros2dds] ... Zenoh session opened, namespace: /ausra_1
-```
-
-### 2.2 Jetson 2 (`ausra_2`)
-
-Identical, with `robot_name:=ausra_2`.
 
 ### 2.3 Laptop (base station)
+
+To start the base station with the default robot configurations (`ausra_1` and `ausra_2` at `0.0:0.0` offsets):
 
 ```bash
 cd ~/ausra_ws
@@ -127,17 +138,31 @@ source /opt/ros/humble/setup.bash
 source install/setup.bash
 
 cd src/AUSRA-Autonomous-System-hardware_with_nav2/ausra_comms_base/scripts
-./start_base.sh
+./start_base.sh robot_config:="ausra_1:0.0:0.0 ausra_2:0.0:1.2"
+```
+#### To Kill Zenoh
+
+```bash
+ssh ausranano@192.168.0.129 'pkill -f zenoh-bridge'
+ssh ausranano@192.168.0.165 'pkill -f zenoh-bridge'
+# then relaunch the stack on each Jetson
 ```
 
-`start_base.sh` sets `ROS_LOCALHOST_ONLY=1` for you (it reads `USE_ZENOH`, which defaults to `true`). It pings both Jetsons, then launches `base_station.launch.py` which starts the laptop Zenoh bridge + map merge + RViz2.
+#### Specifying Robot Configurations & Namespaces
+If you need to change the namespaces or initial poses of the robots to merge, you can pass the `robot_config` argument directly to the script:
 
-If you'd rather call the launch file directly:
+```bash
+./start_base.sh robot_config:="ausra_1:0.0:0.0 ausra_2:-3.0:4.8"
+```
+
+The script automatically sets `ROS_LOCALHOST_ONLY=1` (when using Zenoh), pings the Jetson IPs to verify network connection, and forwards any CLI arguments to the underlying launch file.
+
+If you prefer to call the launch file directly:
 
 ```bash
 export ROS_DOMAIN_ID=0
 export ROS_LOCALHOST_ONLY=1
-ros2 launch ausra_comms_base base_station.launch.py
+ros2 launch ausra_comms_base base_station.launch.py robot_config:="ausra_1:0.0:0.0 ausra_2:1.5:-2.0"
 ```
 
 ---
@@ -161,8 +186,8 @@ The `/ausra_X/` namespace on each Jetson is set at launch via a `-n /ausra_X` CL
     domain: 0,
     namespace: "/ausra_X_OVERRIDE_AT_LAUNCH",   // overridden by -n
     allow: {
-      publishers:  ["/ausra_.*/map", "/ausra_.*/pose", "/ausra_.*/heartbeat"],
-      subscribers: ["/ausra_.*/map", "/ausra_.*/pose", "/ausra_.*/heartbeat"],
+      publishers:  ["/ausra_.*/map", "/ausra_.*/map_compressed", "/ausra_.*/heartbeat"],
+      subscribers: ["/ausra_.*/map", "/ausra_.*/map_compressed", "/ausra_.*/heartbeat"],
       // services & actions explicitly empty — pub/sub only across WiFi
     },
     reliable_routes_blocking: true,    // preserves /map's reliable+transient_local QoS
@@ -180,7 +205,7 @@ Peer discovery uses Zenoh's own scouting multicast on `224.0.0.224:7446` — **n
 
 ---
 
-## 4. Verify only `/map`, `/pose`, `/heartbeat` cross WiFi
+## 4. Verify only `/map`, `/map_compressed`, `/heartbeat` cross WiFi
 
 Three checks: name list, traffic capture, QoS sanity.
 
@@ -198,10 +223,10 @@ Expected — exactly these and nothing else:
 ```
 /ausra_1/heartbeat
 /ausra_1/map
-/ausra_1/pose
+/ausra_1/map_compressed
 /ausra_2/heartbeat
 /ausra_2/map
-/ausra_2/pose
+/ausra_2/map_compressed
 ```
 
 If you see `/ausra_1/scan`, `/ausra_1/odom`, or `/ausra_1/tf` in the list, the allowlist is leaking. Check that the Zenoh config installed correctly and that you actually launched with `use_zenoh:=true`.
@@ -344,10 +369,10 @@ USE_ZENOH=false ./start_base.sh
 ros2 launch ausra_comms_base base_station.launch.py use_zenoh:=false
 ```
 
-You also need to flip `ROS_LOCALHOST_ONLY` back to `0` so DDS multicast can cross WiFi again:
+You also need to unset `ROS_LOCALHOST_ONLY` so DDS multicast can cross WiFi again:
 
 ```bash
-export ROS_LOCALHOST_ONLY=0
+unset ROS_LOCALHOST_ONLY
 ```
 
 `start_base.sh` does this automatically when `USE_ZENOH=false`.
@@ -386,8 +411,8 @@ DDS multicast over WiFi, `ROS_LOCALHOST_ONLY=0`, all the original symptoms (floo
 │  Nav2, EKF, costmaps     │                                              │
 │  /scan /tf /odom etc.    │                                              │
 │                          ▼                                              │
-│                     relay_node ──► /ausra_1/map  (throttled, namespaced)│
-│                                ──► /ausra_1/pose                        │
+│                     relay_node ──► /ausra_1/map (throttled)        │
+│                                ──► /ausra_1/map_compressed (optional)   │
 │                                ──► /ausra_1/heartbeat                   │
 │                                            │                             │
 │                                            ▼                             │
@@ -399,8 +424,8 @@ DDS multicast over WiFi, `ROS_LOCALHOST_ONLY=0`, all the original symptoms (floo
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                       ON-LAPTOP (loopback DDS only)                      │
 │                                                                          │
-│   zenoh-bridge-ros2dds (allowlist) ──► /ausra_1/map (transient_local)   │
-│                                    ──► /ausra_1/pose                    │
+│   zenoh-bridge-ros2dds (allowlist) ──► /ausra_1/map (transient)   │
+│                                    ──► /ausra_1/map_compressed          │
 │                                    ──► /ausra_1/heartbeat               │
 │                                            │                             │
 │                                            ▼                             │
@@ -418,4 +443,56 @@ What changed in the architecture:
 - Phantom robot, spawn-offset invariant, frame names: **unchanged** — all downstream of the bridge.
 
 For the original design rationale (why three topics, why throttled, etc.) see `ausra_comms_base/docs/COMMUNICATION_ARCHITECTURE.md`. For deployment runbook see `ausra_comms_base/docs/DEPLOYMENT_2JETSONS.md`.
+
+---
+
+## 9. Quick Reference Cheat Sheet
+
+### 9.1 Running Jetson with Zenoh
+To run a Jetson (e.g. `ausra_1`) with Zenoh enabled:
+1. Ensure loopback mode is active in the terminal:
+   ```bash
+   export ROS_LOCALHOST_ONLY=1
+   export ROS_DOMAIN_ID=0
+   ```
+2. Launch the hardware with comms (Zenoh is enabled by default):
+   ```bash
+   ros2 launch ausra_comms hardware_with_comms.launch.py robot_name:=ausra_1 use_zenoh:=true
+   ```
+
+### 9.2 Running Laptop (Base Station) with Zenoh
+To launch the Laptop Base Station with Zenoh:
+1. Ensure loopback mode is active in the terminal:
+   ```bash
+   export ROS_LOCALHOST_ONLY=1
+   export ROS_DOMAIN_ID=0
+   ```
+2. Run the startup script or launch file directly:
+   ```bash
+   USE_ZENOH=true ./start_base.sh
+   # OR
+   ros2 launch ausra_comms_base base_station.launch.py use_zenoh:=true
+   ```
+
+### 9.3 Fully Terminating & Running WITHOUT Zenoh (e.g., direct DDS over WiFi)
+If you want to test without Zenoh (running raw DDS over WiFi, e.g., for hardware full stack):
+1. **Kill all Zenoh bridge processes** on all machines:
+   ```bash
+   pkill -f zenoh-bridge
+   ```
+2. **Reset the ROS Localhost environment variable** (this is critical so that nodes on different machines can discover each other over WiFi DDS):
+   ```bash
+   unset ROS_LOCALHOST_ONLY
+   ```
+3. **Launch the nodes with `use_zenoh:=false`**:
+   * **On Jetson**:
+     ```bash
+     ros2 launch ausra_comms hardware_with_comms.launch.py robot_name:=ausra_1 use_zenoh:=false
+     ```
+   * **On Laptop**:
+     ```bash
+     USE_ZENOH=false ./start_base.sh
+     # OR
+     ros2 launch ausra_comms_base base_station.launch.py use_zenoh:=false
+     ```
 

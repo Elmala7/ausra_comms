@@ -9,7 +9,7 @@
 //   multirobot_map_merge can consume without crashing or misaligning.
 //
 // HARDWARE ADAPTATION NOTES:
-//   - Default input_topic is "/map" (hardware SLAM runs in global namespace).
+//   - Default input_topic is "map" (relative; namespaced at launch time).
 //   - Default output_topic is "/ausra_1/map_fixed".
 //   - robot_offset_x/y represent physical tape-measured spawn offsets, not
 //     Gazebo spawn coordinates.
@@ -113,9 +113,10 @@ public:
     frame_id_("map")         // safe default; overwritten on first SLAM message
   {
     // ── Parameter declarations ──────────────────────────────────────────────
-    // HARDWARE DEFAULT: input_topic is "/map" (global namespace SLAM output)
-    this->declare_parameter<std::string>("input_topic",      "/map");
-    this->declare_parameter<std::string>("output_topic",     "/ausra_1/map_fixed");
+    // HARDWARE DEFAULT: input_topic is "map" (relative, namespaced at launch)
+    this->declare_parameter<std::string>("input_topic",      "map");
+    this->declare_parameter<std::string>("output_topic",     "map_fixed");
+    this->declare_parameter<std::string>("output_frame_id",  "");
     this->declare_parameter<int>   ("canvas_width",           1000);
     this->declare_parameter<int>   ("canvas_height",          1000);
     this->declare_parameter<double>("canvas_resolution",      0.05);
@@ -128,6 +129,7 @@ public:
     // ── Read parameters ─────────────────────────────────────────────────────
     input_topic_       = this->get_parameter("input_topic").as_string();
     output_topic_      = this->get_parameter("output_topic").as_string();
+    output_frame_id_   = this->get_parameter("output_frame_id").as_string();
     canvas_width_      = this->get_parameter("canvas_width").as_int();
     canvas_height_     = this->get_parameter("canvas_height").as_int();
     canvas_resolution_ = this->get_parameter("canvas_resolution").as_double();
@@ -136,6 +138,10 @@ public:
     robot_offset_x_    = this->get_parameter("robot_offset_x").as_double();
     robot_offset_y_    = this->get_parameter("robot_offset_y").as_double();
     const double publish_rate_hz = this->get_parameter("publish_rate_hz").as_double();
+
+    if (!output_frame_id_.empty()) {
+      frame_id_ = output_frame_id_;
+    }
 
     // ── Validate canvas origin lies on a grid line ──────────────────────────
     // If canvas_origin is not an integer multiple of resolution, every cell
@@ -413,12 +419,14 @@ private:
     // Record the SLAM frame_id once. It stays stable for the node's lifetime.
     // The heartbeat uses this to set the published map's header.frame_id.
     if (!slam_received_) {
-      frame_id_     = incoming_map->header.frame_id;
+      if (output_frame_id_.empty()) {
+        frame_id_     = incoming_map->header.frame_id;
+      }
       slam_received_ = true;
       RCLCPP_INFO(this->get_logger(),
         "First SLAM map received from frame '%s' at offset (%d, %d) px. "
-        "Canvas now carries real map data.",
-        frame_id_.c_str(), offset_x, offset_y);
+        "Canvas now carries real map data (frame_id: '%s').",
+        incoming_map->header.frame_id.c_str(), offset_x, offset_y, frame_id_.c_str());
     }
 
     RCLCPP_DEBUG(this->get_logger(),
@@ -437,6 +445,7 @@ private:
   // ── Parameters ─────────────────────────────────────────────────────────────
   std::string input_topic_;
   std::string output_topic_;
+  std::string output_frame_id_;
   int         canvas_width_;
   int         canvas_height_;
   double      canvas_resolution_;

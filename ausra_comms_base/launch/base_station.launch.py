@@ -1,23 +1,3 @@
-# ============================================================
-# FILE: base_station.launch.py
-# PACKAGE: ausra_comms_base
-# RUNS ON: Laptop (base station)
-# PURPOSE: Launches map_merge pipeline, RViz2, and the Zenoh
-#          cross-WiFi bridge. With Zenoh enabled, robot topics
-#          arrive over the Zenoh fabric (not raw DDS multicast).
-#
-# LAUNCH ARGUMENTS:
-#   use_zenoh — start the Zenoh cross-WiFi bridge (default: true)
-#               Set false to revert to plain DDS (also requires
-#               unsetting ROS_LOCALHOST_ONLY=1 — see ZENOH_GUIDE.md).
-#
-# ENVIRONMENT:
-#   ROS_LOCALHOST_ONLY=1  — enforced when use_zenoh=true (Zenoh is the
-#                            only cross-machine channel).
-#   ZENOH_BRIDGE_BIN      — override path to zenoh-bridge-ros2dds binary.
-#                            Defaults to /opt/zenoh-bridge/zenoh-bridge-ros2dds.
-# ============================================================
-
 import os
 
 from launch import LaunchDescription
@@ -43,14 +23,18 @@ def generate_launch_description():
         'ZENOH_BRIDGE_BIN',
         '/opt/zenoh-bridge/zenoh-bridge-ros2dds')
 
+    use_rviz = LaunchConfiguration('use_rviz')
+    use_compression = LaunchConfiguration('use_compression')
+
     return LaunchDescription([
         DeclareLaunchArgument('use_zenoh', default_value='true',
-                              description='Start Zenoh cross-WiFi bridge'),
+                               description='Start Zenoh cross-WiFi bridge'),
+        DeclareLaunchArgument('use_rviz', default_value='true',
+                               description='Start RViz2 base station GUI'),
+        DeclareLaunchArgument('use_compression', default_value='true',
+                               description='Decompress /ausra_X/map_compressed '
+                                           'into /ausra_X/map for map merge'),
 
-        # --- Zenoh bridge (graceful: respawn, no kill-cascade) ---
-        # Starts first so the bridge is ready when subscribers come up.
-        # respawn=True: bridge restarts if it crashes; the merge pipeline
-        # keeps running and recovers as soon as the bridge is back.
         ExecuteProcess(
             cmd=[zenoh_bin, '-c', zenoh_cfg],
             output='screen',
@@ -64,7 +48,19 @@ def generate_launch_description():
             condition=IfCondition(use_zenoh),
         ),
 
-        # --- Map merge: /ausra_1/map, /ausra_2/map → /map_merged ---
+        # Decompress incoming /ausra_X/map_compressed → /ausra_X/map so the
+        # map_merge pipeline (which subscribes to /ausra_X/map) sees the maps.
+        Node(
+            package='ausra_comms_base',
+            executable='map_decompressor_node',
+            name='map_decompressor_node',
+            output='screen',
+            parameters=[{
+                'robots': ['ausra_1', 'ausra_2'],
+            }],
+            condition=IfCondition(use_compression),
+        ),
+
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource([
                 bringup_share,
@@ -72,11 +68,11 @@ def generate_launch_description():
             ]),
         ),
 
-        # --- RViz2: visualization ---
         Node(
             package='rviz2',
             executable='rviz2',
             name='rviz2',
             output='screen',
+            condition=IfCondition(use_rviz),
         ),
     ])

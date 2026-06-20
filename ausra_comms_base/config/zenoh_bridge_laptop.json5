@@ -1,60 +1,30 @@
-// ============================================================================
-// FILE: zenoh_bridge_laptop.json5
-// PACKAGE: ausra_comms_base (Laptop)
-// PURPOSE: Configures the Zenoh bridge on the laptop base station.
-//          Mirrors the Jetson allowlist to receive data over WiFi.
-// ============================================================================
+// Zenoh bridge config for Laptop base station.
 {
   plugins: {
     ros2dds: {
-      // DDS Domain ID (must match domain of all other nodes in the swarm)
       domain: 0,
-
-      // Laptop is namespace-neutral. It receives namespaced topics as-is.
       namespace: "/",
-
-      // Allowlist: ONLY topics matching these patterns cross WiFi.
       allow: {
-        publishers: [
-          // Laptop is a data sink and publishes nothing across WiFi by default.
-          // Uncomment below if you need to push the merged map back to robots:
-          // "/map_merged",
-        ],
+        publishers: [],
         subscribers: [
-          // Receive map, pose, and heartbeat topics from all robots
-          "/ausra_.*/map",
-          "/ausra_.*/pose",
+          "/ausra_.*/map_compressed",
           "/ausra_.*/heartbeat",
-          // TF frames from robots (needed for RViz frame resolution)
-          "/tf",
-          "/tf_static",
-
-          // Future swarm topics (uncomment if implementing swarm nav):
-          // "/ausra_.*/swarm_obstacles_scan",
-          // "/ausra_.*/active_target",
+          // "/ausra_.*/frontier_coordinator/frontiers",
         ],
         service_servers: [],
         service_clients: [],
-        action_servers:  [],
-        action_clients:  [],
+        action_servers: [],
+        action_clients: [],
       },
-
-      // Keep transient_local + reliable QoS working for SLAM map topics
       reliable_routes_blocking: true,
     },
   },
-
-  // Peer-to-peer session mode (no central broker required)
   mode: "peer",
-
-  // Local listen endpoint for Zenoh traffic
   listen: {
-    endpoints: ["tcp/0.0.0.0:7447"],
+    endpoints: [
+      "tcp/0.0.0.0:7447"
+    ],
   },
-
-  // Auto-discovery via Zenoh's multicast channel.
-  // If your WiFi router blocks multicast, comment this scouting block
-  // and uncomment the connect block below.
   scouting: {
     multicast: {
       enabled: true,
@@ -65,13 +35,10 @@
       enabled: true,
     },
   },
-
-  // Static peer connections — ensures the laptop discovers both Jetsons
-  // even when the WiFi router blocks multicast between clients.
   connect: {
     endpoints: [
-      "tcp/192.168.1.33:7447",   // Jetson 1 (ausra_1)
-      "tcp/192.168.1.42:7447",   // Jetson 2 (ausra_2)
+      "tcp/192.168.0.165:7447",
+      "tcp/192.168.0.129:7447",
     ],
   },
 }
