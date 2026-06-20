@@ -168,8 +168,7 @@ each peer's canvas sits to place it correctly.
 ```bash
 # Same string on BOTH robots and the laptop. robot_name differs; robot_config does not.
 # Robot 1:
-ros2 launch ausra_comms hardware_decentralized.launch.py \
-    robot_name:=ausra_1 \
+ros2 launch ausra_comms hardware_decentralized.launch.py robot_name:=ausra_1
     robot_config:="ausra_1:0.0:0.0 ausra_2:1.5:-2.0"
 
 # Robot 2:

@@ -9,8 +9,7 @@
         subscribers: [
           "/ausra_.*/map_compressed",
           "/ausra_.*/heartbeat",
-          "/ausra_.*/local_pose",
-          "/ausra_.*/current_goal",
+          // "/ausra_.*/frontier_coordinator/frontiers",
         ],
         service_servers: [],
         service_clients: [],

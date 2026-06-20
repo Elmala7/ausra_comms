@@ -125,7 +125,7 @@ source install/setup.bash
 export ROS_DOMAIN_ID=0
 export ROS_LOCALHOST_ONLY=1     # <-- new, mandatory with Zenoh
 
-ros2 launch ausra_comms hardware_with_comms.launch.py robot_name:=ausra_1 robot_config:="ausra_1:1.0:0.0 ausra_2:3.5:0.0"
+ros2 launch ausra_comms decentralized_robot.launch.py robot_name:=ausra_1 robot_config:="ausra_1:0.0:0.0 ausra_2:0.0:1.2" nudge_robot:=true
 ```
 
 ### 2.3 Laptop (base station)
@@ -138,14 +138,21 @@ source /opt/ros/humble/setup.bash
 source install/setup.bash
 
 cd src/AUSRA-Autonomous-System-hardware_with_nav2/ausra_comms_base/scripts
-./start_base.sh robot_config:="ausra_1:1.0:0.0 ausra_2:1.0:0.4"
+./start_base.sh robot_config:="ausra_1:0.0:0.0 ausra_2:0.0:1.2"
+```
+#### To Kill Zenoh
+
+```bash
+ssh ausranano@192.168.0.129 'pkill -f zenoh-bridge'
+ssh ausranano@192.168.0.165 'pkill -f zenoh-bridge'
+# then relaunch the stack on each Jetson
 ```
 
 #### Specifying Robot Configurations & Namespaces
 If you need to change the namespaces or initial poses of the robots to merge, you can pass the `robot_config` argument directly to the script:
 
 ```bash
-./start_base.sh robot_config:="ausra_1:0.0:0.0 ausra_2:1.5:-2.0"
+./start_base.sh robot_config:="ausra_1:0.0:0.0 ausra_2:-3.0:4.8"
 ```
 
 The script automatically sets `ROS_LOCALHOST_ONLY=1` (when using Zenoh), pings the Jetson IPs to verify network connection, and forwards any CLI arguments to the underlying launch file.
